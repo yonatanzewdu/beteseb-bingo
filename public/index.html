@@ -27,8 +27,17 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 .screen.active{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
+/* LOADING SCREEN */
+#screenLoading{text-align:center;padding-top:80px}
+.loading-spinner{width:48px;height:48px;border:4px solid #2d1b4e;border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{color:var(--gray);font-size:14px}
+
 /* LOBBY */
 .screen-title{font-family:'Orbitron',sans-serif;text-align:center;margin:15px 0;font-size:16px}
+.welcome-banner{background:var(--panel);border:1px solid #3c2463;border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+.welcome-name{font-size:14px;color:var(--gray)}
+.welcome-name span{color:#fff;font-weight:700}
 .stakes-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .stake-card{background:var(--panel);border:1px solid #3c2463;border-radius:12px;padding:16px;text-align:center;cursor:pointer;transition:transform .1s,border-color .2s}
 .stake-card:hover{border-color:var(--gold)}
@@ -114,19 +123,11 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 
 /* BOTTOM NAV */
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;height:64px;background:var(--panel);border-top:2px solid #2d174d;display:flex;justify-content:space-around;align-items:center;z-index:200}
+.nav-item{display:flex;flex-direction:column;align-items:color:var(--gray);font-size:10px;cursor:pointer;font-weight:600;padding:4px 10px}
 .nav-item{display:flex;flex-direction:column;align-items:center;color:var(--gray);font-size:10px;cursor:pointer;font-weight:600;padding:4px 10px}
 .nav-item.active{color:var(--gold)}
 .nav-icon{font-size:22px;margin-bottom:2px}
 .nav-center{width:54px;height:54px;background:linear-gradient(145deg,#ffcc00,#d4aa00);border-radius:50%;border:3px solid var(--bg);transform:translateY(-12px);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,.4);cursor:pointer}
-
-/* NAME MODAL */
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:600;display:flex;align-items:center;justify-content:center}
-.modal{background:var(--panel);border:1px solid #4a2d7a;border-radius:16px;padding:24px;width:320px;text-align:center}
-.modal h2{font-family:'Orbitron',sans-serif;color:var(--gold);font-size:18px;margin-bottom:8px}
-.modal p{font-size:13px;color:var(--gray);margin-bottom:16px}
-.modal input{width:100%;background:var(--card);border:1px solid #4a2d7a;color:#fff;padding:12px;border-radius:8px;font-size:15px;outline:none;margin-bottom:12px}
-.modal input:focus{border-color:var(--gold)}
-.btn-gold{width:100%;background:var(--gold);color:#000;border:none;padding:13px;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;font-family:'Inter',sans-serif}
 </style>
 </head>
 <body>
@@ -136,8 +137,18 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
   <div class="balance-pill" id="balanceEl">ETB 0.00</div>
 </div>
 
+<!-- LOADING -->
+<div id="screenLoading" class="screen active">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Connecting...</div>
+</div>
+
 <!-- LOBBY -->
-<div id="screenLobby" class="screen active">
+<div id="screenLobby" class="screen">
+  <div class="welcome-banner">
+    <div class="welcome-name">Welcome, <span id="welcomeName">Player</span>!</div>
+    <div style="font-size:12px;color:var(--gray)" id="welcomeStatus">Ready to play</div>
+  </div>
   <h2 class="screen-title">SELECT STAKE TIER</h2>
   <div id="stakesGrid" class="stakes-grid"></div>
 </div>
@@ -207,22 +218,11 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 
 <!-- BOTTOM NAV -->
 <div class="bottom-nav">
-  <div class="nav-item active" onclick="goScreen('screenLobby')"><span class="nav-icon">🏠</span><span>HOME</span></div>
-  <div class="nav-item" onclick="goScreen('screenGame')"><span class="nav-icon">🟨</span><span>GAME</span></div>
+  <div class="nav-item active" id="navHome" onclick="goScreen('screenLobby');setActiveNav('navHome')"><span class="nav-icon">🏠</span><span>HOME</span></div>
+  <div class="nav-item" id="navGame" onclick="goScreen('screenGame');setActiveNav('navGame')"><span class="nav-icon">🟨</span><span>GAME</span></div>
   <div class="nav-center"><span style="font-size:24px">👑</span></div>
-  <div class="nav-item" onclick="goScreen('screenCards')"><span class="nav-icon">🃏</span><span>CARDS</span></div>
-  <div class="nav-item"><span class="nav-icon">📊</span><span>LEADERS</span></div>
-</div>
-
-<!-- NAME MODAL -->
-<div class="modal-bg" id="nameModal">
-  <div class="modal">
-    <div style="font-size:40px;margin-bottom:8px">🎱</div>
-    <h2>Welcome!</h2>
-    <p>Enter your name to start playing</p>
-    <input type="text" id="nameInput" placeholder="Your name..." maxlength="20" autocomplete="off">
-    <button class="btn-gold" onclick="submitName()">Play Now →</button>
-  </div>
+  <div class="nav-item" id="navCards" onclick="goScreen('screenCards');setActiveNav('navCards')"><span class="nav-icon">🃏</span><span>CARDS</span></div>
+  <div class="nav-item" id="navLeaders" onclick="goScreen('screenLobby');setActiveNav('navHome')"><span class="nav-icon">📊</span><span>LEADERS</span></div>
 </div>
 
 <script>
@@ -231,48 +231,79 @@ let ws, myPlayerId, myName='', myRoomId=null, myStakeId=null;
 let myCardId=null, myCardNumbers=[], markedIndices=new Set(), currentBalance=0;
 let claimWindowOpen=false, claimBarAnim=null;
 let prevLastCalled=null;
+let telegramId=null;
+
+// ─── GET TELEGRAM ID FROM URL ─────────────────────────────────
+function getTelegramId(){
+  const p = new URLSearchParams(location.search);
+  if(p.get('tid')) return p.get('tid');
+  // Also try Telegram WebApp SDK
+  try {
+    if(window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe){
+      const u = Telegram.WebApp.initDataUnsafe.user;
+      if(u && u.id) return u.id;
+    }
+  } catch(e){}
+  return null;
+}
 
 // ─── WEBSOCKET ────────────────────────────────────────────────
 function connect(){
-  const proto=location.protocol==='https:'?'wss://':'ws://';
-  ws=new WebSocket(proto+location.host);
+  const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  ws = new WebSocket(proto + location.host);
 
-  ws.onopen=()=>{
+  ws.onopen = () => {
     document.getElementById('connDot').classList.add('on');
-    // Try to reconnect to active game if we were in one
-    if(myRoomId) ws.send(JSON.stringify({type:'reconnect',roomId:myRoomId}));
+    if(myRoomId) wsSend({type:'reconnect', roomId:myRoomId});
   };
 
-  ws.onclose=()=>{
+  ws.onclose = () => {
     document.getElementById('connDot').classList.remove('on');
-    setTimeout(connect,3000);
+    setTimeout(connect, 3000);
   };
 
-  ws.onerror=()=>{};
+  ws.onerror = () => {};
 
-  ws.onmessage=e=>{
-    try{ handle(JSON.parse(e.data)); }catch(err){ console.error(err); }
+  ws.onmessage = e => {
+    try{ handle(JSON.parse(e.data)); } catch(err){ console.error(err); }
   };
 }
 
-function wsSend(obj){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(obj)); }
+function wsSend(obj){ if(ws && ws.readyState===1) ws.send(JSON.stringify(obj)); }
 
 // ─── MESSAGE HANDLER ─────────────────────────────────────────
 function handle(msg){
   switch(msg.type){
 
     case 'connected':
-      myPlayerId=msg.playerId;
-      setBalance(msg.balance);
+      myPlayerId = msg.playerId;
+      setBalance(0);
       if(msg.stakes) renderStakes(msg.stakes);
-      // Show name modal if not named yet
-      if(!myName) document.getElementById('nameModal').style.display='flex';
+
+      // Immediately try to register with Telegram
+      telegramId = getTelegramId();
+      if(telegramId){
+        // Get name from Telegram WebApp if available
+        let tgName = '';
+        try {
+          if(window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe){
+            const u = Telegram.WebApp.initDataUnsafe.user;
+            if(u) tgName = [u.first_name, u.last_name].filter(Boolean).join(' ');
+          }
+        } catch(e){}
+        wsSend({ type:'telegramRegister', telegramId: parseInt(telegramId), name: tgName });
+      } else {
+        // No Telegram ID — go straight to lobby as guest (balance 0)
+        goScreen('screenLobby');
+      }
       break;
 
     case 'registered':
-    case 'nameSet':
-      myName=msg.playerName||msg.name;
-      document.getElementById('nameModal').style.display='none';
+      myName = msg.playerName || msg.name || 'Player';
+      setBalance(msg.balance);
+      document.getElementById('welcomeName').innerText = myName;
+      document.getElementById('welcomeStatus').innerText = msg.isReturning ? 'Welcome back!' : 'Registered!';
+      goScreen('screenLobby');
       break;
 
     case 'lobbyUpdate':
@@ -280,12 +311,13 @@ function handle(msg){
       break;
 
     case 'joinedRoom':
-      myRoomId=msg.roomId;
-      myStakeId=msg.stakeId;
-      myCardId=null;
-      markedIndices=new Set([12]);
+      myRoomId = msg.roomId;
+      myStakeId = msg.stakeId;
+      myCardId = null;
+      markedIndices = new Set([12]);
       setBalance(msg.balance);
       goScreen('screenCards');
+      setActiveNav('navCards');
       break;
 
     case 'cardPoolUpdate':
@@ -293,53 +325,54 @@ function handle(msg){
       break;
 
     case 'cardSelected':
-      myCardId=msg.cardId;
-      myCardNumbers=msg.cardNumbers;
-      document.getElementById('cardLabel').innerText=`Card #${msg.cardId}`;
+      myCardId = msg.cardId;
+      myCardNumbers = msg.cardNumbers;
+      document.getElementById('cardLabel').innerText = `Card #${msg.cardId}`;
       break;
 
     case 'countdown':
-      document.getElementById('cdCountdown').innerText=`Starts in: ${msg.seconds}s`;
+      document.getElementById('cdCountdown').innerText = `Starts in: ${msg.seconds}s`;
       break;
 
     case 'waitingForPlayers':
-      document.getElementById('cdCountdown').innerText='Waiting for players...';
+      document.getElementById('cdCountdown').innerText = 'Waiting for players...';
       break;
 
     case 'yourCard':
-      myCardId=msg.cardId;
-      myCardNumbers=msg.cardNumbers;
-      document.getElementById('cardLabel').innerText=`Card #${msg.cardId}`;
-      document.getElementById('potVal').innerText=`${msg.pot} ETB`;
-      document.getElementById('playerCountVal').innerText=msg.playerCount;
-      markedIndices=new Set([12]);
+      myCardId = msg.cardId;
+      myCardNumbers = msg.cardNumbers;
+      document.getElementById('cardLabel').innerText = `Card #${msg.cardId}`;
+      document.getElementById('potVal').innerText = `${msg.pot} ETB`;
+      document.getElementById('playerCountVal').innerText = msg.playerCount;
+      markedIndices = new Set([12]);
       renderCard(myCardNumbers);
       break;
 
     case 'gameStart':
-      document.getElementById('potVal').innerText=`${msg.pot} ETB`;
-      document.getElementById('playerCountVal').innerText=msg.players.length;
+      document.getElementById('potVal').innerText = `${msg.pot} ETB`;
+      document.getElementById('playerCountVal').innerText = msg.players.length;
       resetTrackerBoard();
-      claimWindowOpen=false;
+      claimWindowOpen = false;
       setBingoBtn('idle');
       goScreen('screenGame');
+      setActiveNav('navGame');
       break;
 
     case 'reconnected':
-      myRoomId=msg.roomId;
-      myCardId=msg.cardId;
-      myCardNumbers=msg.cardNumbers;
-      markedIndices=new Set([12]);
-      document.getElementById('cardLabel').innerText=`Card #${msg.cardId}`;
-      document.getElementById('potVal').innerText=`${msg.pot} ETB`;
-      document.getElementById('playerCountVal').innerText=msg.playerCount;
-      // Mark already-called numbers on tracker
-      msg.calledNumbers.forEach(n=>{
-        const el=document.getElementById('tb'+n);
-        if(el){ el.className='t-ball '+colClass(n); }
+      myRoomId = msg.roomId;
+      myCardId = msg.cardId;
+      myCardNumbers = msg.cardNumbers;
+      markedIndices = new Set([12]);
+      document.getElementById('cardLabel').innerText = `Card #${msg.cardId}`;
+      document.getElementById('potVal').innerText = `${msg.pot} ETB`;
+      document.getElementById('playerCountVal').innerText = msg.playerCount;
+      msg.calledNumbers.forEach(n => {
+        const el = document.getElementById('tb'+n);
+        if(el) el.className = 't-ball ' + colClass(n);
       });
       renderCard(myCardNumbers);
       goScreen('screenGame');
+      setActiveNav('navGame');
       break;
 
     case 'numberCalled':
@@ -367,18 +400,18 @@ function handle(msg){
       break;
 
     case 'backToCardSelection':
-      // Game ended — go back to card selection with same room
-      myRoomId=msg.roomId;
-      myCardId=null;
-      myCardNumbers=[];
-      markedIndices=new Set([12]);
-      claimWindowOpen=false;
+      myRoomId = msg.roomId;
+      myCardId = null;
+      myCardNumbers = [];
+      markedIndices = new Set([12]);
+      claimWindowOpen = false;
       hideWinnerOverlay();
-      if(msg.balance!==undefined) setBalance(msg.balance);
+      if(msg.balance !== undefined) setBalance(msg.balance);
       resetTrackerBoard();
       setBingoBtn('idle');
-      document.getElementById('cdCountdown').innerText='Waiting...';
+      document.getElementById('cdCountdown').innerText = 'Waiting...';
       goScreen('screenCards');
+      setActiveNav('navCards');
       break;
 
     case 'balanceUpdate':
@@ -386,8 +419,9 @@ function handle(msg){
       break;
 
     case 'leftRoom':
-      myRoomId=null; myCardId=null;
+      myRoomId = null; myCardId = null;
       goScreen('screenLobby');
+      setActiveNav('navHome');
       break;
 
     case 'error':
@@ -398,57 +432,47 @@ function handle(msg){
 
 // ─── NUMBER CALLED ────────────────────────────────────────────
 function onNumberCalled(msg){
-  const n=msg.number;
-  const cfg=numConfig(n);
+  const n = msg.number;
+  const cfg = numConfig(n);
 
-  // Update ball display
-  const circle=document.getElementById('ballCircle');
-  circle.style.background=cfg.color;
-  circle.style.transform='scale(1.12)';
+  const circle = document.getElementById('ballCircle');
+  circle.style.background = cfg.color;
+  circle.style.transform = 'scale(1.12)';
   setTimeout(()=>circle.style.transform='scale(1)',180);
-  document.getElementById('ballLetter').innerText=cfg.letter;
-  document.getElementById('ballNumber').innerText=n;
-  document.getElementById('ballSub').innerText=`${msg.callCount}/75`;
+  document.getElementById('ballLetter').innerText = cfg.letter;
+  document.getElementById('ballNumber').innerText = n;
+  document.getElementById('ballSub').innerText = `${msg.callCount}/75`;
 
-  // Update tracker
   if(prevLastCalled){
-    const prev=document.getElementById('tb'+prevLastCalled);
+    const prev = document.getElementById('tb'+prevLastCalled);
     if(prev) prev.classList.remove('latest');
   }
-  const tb=document.getElementById('tb'+n);
-  if(tb){ tb.className='t-ball '+cfg.cls+' latest'; }
-  prevLastCalled=n;
+  const tb = document.getElementById('tb'+n);
+  if(tb){ tb.className = 't-ball ' + cfg.cls + ' latest'; }
+  prevLastCalled = n;
 
-  // Open claim window + animate bar
-  claimWindowOpen=true;
+  claimWindowOpen = true;
   setBingoBtn('ready');
-  startClaimBar(msg.claimWindowMs||4800);
-
-  // Highlight card cells that match this number
+  startClaimBar(msg.claimWindowMs || 4800);
   refreshCardCells();
 }
 
 function startClaimBar(ms){
-  const bar=document.getElementById('claimBar');
+  const bar = document.getElementById('claimBar');
   if(claimBarAnim) clearTimeout(claimBarAnim);
-  bar.style.transition='none';
-  bar.style.width='100%';
-  bar.className='claim-bar';
-  // Force reflow
+  bar.style.transition = 'none';
+  bar.style.width = '100%';
+  bar.className = 'claim-bar';
   bar.offsetWidth;
-  bar.style.transition=`width ${ms}ms linear`;
-  bar.style.width='0%';
-  if(ms<2000) bar.className='claim-bar urgent';
-
-  claimBarAnim=setTimeout(()=>{
-    claimWindowOpen=false;
-    setBingoBtn('locked');
-  }, ms);
+  bar.style.transition = `width ${ms}ms linear`;
+  bar.style.width = '0%';
+  if(ms < 2000) bar.className = 'claim-bar urgent';
+  claimBarAnim = setTimeout(()=>{ claimWindowOpen=false; setBingoBtn('locked'); }, ms);
 }
 
 function setBingoBtn(state){
-  const btn=document.getElementById('bingoBtn');
-  btn.className='bingo-btn';
+  const btn = document.getElementById('bingoBtn');
+  btn.className = 'bingo-btn';
   if(state==='ready') btn.classList.add('ready');
   if(state==='locked') btn.classList.add('locked');
 }
@@ -462,14 +486,12 @@ function claimBingo(){
 
 // ─── WINNER OVERLAY ───────────────────────────────────────────
 function showWinnerOverlay(msg){
-  const ov=document.getElementById('winnerOverlay');
-  document.getElementById('winnerName').innerText=msg.winners&&msg.winners.length>0?msg.winners.join(' & '):'-';
-  document.getElementById('winnerAmount').innerText=`${msg.winAmount} ETB`;
-  document.getElementById('splitTag').style.display=msg.isSplit?'inline-block':'none';
-  document.getElementById('winnerMsg').innerText=msg.message||'';
+  const ov = document.getElementById('winnerOverlay');
+  document.getElementById('winnerName').innerText = msg.winners && msg.winners.length > 0 ? msg.winners.join(' & ') : '-';
+  document.getElementById('winnerAmount').innerText = `${msg.winAmount} ETB`;
+  document.getElementById('splitTag').style.display = msg.isSplit ? 'inline-block' : 'none';
+  document.getElementById('winnerMsg').innerText = msg.message || '';
   ov.classList.add('show');
-
-  // Burst confetti animation
   startConfetti();
 }
 
@@ -478,27 +500,26 @@ function hideWinnerOverlay(){
   stopConfetti();
 }
 
-// Simple confetti burst using canvas
+// ─── CONFETTI ────────────────────────────────────────────────
 let confettiCanvas, confettiCtx, confettiParticles=[], confettiRaf;
 function startConfetti(){
   if(!confettiCanvas){
-    confettiCanvas=document.createElement('canvas');
-    confettiCanvas.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:501';
+    confettiCanvas = document.createElement('canvas');
+    confettiCanvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:501';
     document.body.appendChild(confettiCanvas);
   }
-  confettiCanvas.width=window.innerWidth;
-  confettiCanvas.height=window.innerHeight;
-  confettiCtx=confettiCanvas.getContext('2d');
-  confettiParticles=[];
+  confettiCanvas.width = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+  confettiCtx = confettiCanvas.getContext('2d');
+  confettiParticles = [];
   const colors=['#facc15','#22c55e','#8b5cf6','#ef4444','#3b82f6','#fff'];
   for(let i=0;i<120;i++){
     confettiParticles.push({
-      x:Math.random()*confettiCanvas.width,
-      y:-10-Math.random()*confettiCanvas.height*.5,
-      w:6+Math.random()*8,h:10+Math.random()*8,
+      x:Math.random()*confettiCanvas.width, y:-10-Math.random()*confettiCanvas.height*.5,
+      w:6+Math.random()*8, h:10+Math.random()*8,
       color:colors[Math.floor(Math.random()*colors.length)],
-      vy:3+Math.random()*5,vx:(Math.random()-.5)*3,
-      rot:Math.random()*360,rspeed:(Math.random()-.5)*8
+      vy:3+Math.random()*5, vx:(Math.random()-.5)*3,
+      rot:Math.random()*360, rspeed:(Math.random()-.5)*8
     });
   }
   animConfetti();
@@ -524,24 +545,24 @@ function stopConfetti(){
 }
 
 function showDisqualified(){
-  const ov=document.getElementById('disqOverlay');
+  const ov = document.getElementById('disqOverlay');
   ov.classList.add('show');
   setTimeout(()=>ov.classList.remove('show'),4000);
 }
 
 // ─── CARD RENDERING ───────────────────────────────────────────
 function renderCard(nums){
-  const body=document.getElementById('cardBody');
-  body.innerHTML='';
+  const body = document.getElementById('cardBody');
+  body.innerHTML = '';
   nums.forEach((n,i)=>{
-    const cell=document.createElement('div');
-    cell.className='bingo-cell';
-    cell.id='cell'+i;
+    const cell = document.createElement('div');
+    cell.className = 'bingo-cell';
+    cell.id = 'cell'+i;
     if(i===12){
       cell.classList.add('free','marked');
-      cell.innerText='FREE';
+      cell.innerText = 'FREE';
     } else {
-      cell.innerText=n;
+      cell.innerText = n;
       cell.addEventListener('click',()=>toggleCell(i,cell));
     }
     body.appendChild(cell);
@@ -559,12 +580,10 @@ function refreshCardCells(){
   if(!myCardNumbers.length) return;
   myCardNumbers.forEach((n,i)=>{
     if(i===12) return;
-    const cell=document.getElementById('cell'+i);
+    const cell = document.getElementById('cell'+i);
     if(!cell) return;
-    // Check if this number has been called by server
-    // We trust server - check tracker balls
-    const tb=document.getElementById('tb'+n);
-    const isCalled=tb&&tb.className.includes(' c');
+    const tb = document.getElementById('tb'+n);
+    const isCalled = tb && tb.className.includes(' c');
     if(markedIndices.has(i)){
       cell.classList.add('marked');
       cell.classList.remove('called-not-marked');
@@ -575,93 +594,87 @@ function refreshCardCells(){
     }
   });
 
-  // Light up bingo button if looks promising
-  const btn=document.getElementById('bingoBtn');
-  if(btn&&!btn.classList.contains('locked')&&markedIndices.size>=5){
+  const btn = document.getElementById('bingoBtn');
+  if(btn && !btn.classList.contains('locked') && markedIndices.size >= 5){
     btn.classList.add('ready');
   }
 }
 
 // ─── CARD POOL ────────────────────────────────────────────────
 function renderCardPool(pool){
-  const grid=document.getElementById('poolGrid');
-  const search=parseInt(document.getElementById('cardSearch').value)||0;
-  grid.innerHTML='';
+  const grid = document.getElementById('poolGrid');
+  const search = parseInt(document.getElementById('cardSearch').value) || 0;
+  grid.innerHTML = '';
   pool.forEach(c=>{
-    if(search>0&&c.id!==search) return;
-    const btn=document.createElement('div');
-    btn.className='pool-btn';
-    btn.innerText=`#${c.id}`;
+    if(search > 0 && c.id !== search) return;
+    const btn = document.createElement('div');
+    btn.className = 'pool-btn';
+    btn.innerText = `#${c.id}`;
     if(c.takenByMe){ btn.classList.add('mine'); }
     else if(c.taken){ btn.classList.add('taken'); }
-    else {
-      btn.onclick=()=>wsSend({type:'selectCard',cardId:c.id});
-    }
+    else { btn.onclick = ()=>wsSend({type:'selectCard',cardId:c.id}); }
     grid.appendChild(btn);
   });
 }
 
 document.getElementById('cardSearch').addEventListener('input',()=>{
-  // Re-render with filter — handled on next pool update
-  // For immediate feedback, trigger a manual re-render
-  const allBtns=document.querySelectorAll('.pool-btn');
-  const val=parseInt(document.getElementById('cardSearch').value)||0;
+  const allBtns = document.querySelectorAll('.pool-btn');
+  const val = parseInt(document.getElementById('cardSearch').value) || 0;
   allBtns.forEach(b=>{
-    const id=parseInt(b.innerText.replace('#',''));
-    b.style.display=(val===0||id===val)?'':'none';
+    const id = parseInt(b.innerText.replace('#',''));
+    b.style.display = (val===0 || id===val) ? '' : 'none';
   });
 });
 
 // ─── STAKES ───────────────────────────────────────────────────
 function renderStakes(arr){
-  const grid=document.getElementById('stakesGrid');
-  grid.innerHTML='';
+  const grid = document.getElementById('stakesGrid');
+  grid.innerHTML = '';
   arr.forEach(s=>{
-    const d=document.createElement('div');
-    d.className='stake-card';
-    d.innerHTML=`<div class="stake-etb">${s.amount} ETB</div><div class="stake-info">${s.playerCount} players • ${s.status}${s.status==='countdown'?' ('+s.countdown+'s)':''}</div>`;
-    d.onclick=()=>wsSend({type:'joinRoom',stakeId:s.stakeId});
+    const d = document.createElement('div');
+    d.className = 'stake-card';
+    d.innerHTML = `<div class="stake-etb">${s.amount} ETB</div><div class="stake-info">${s.playerCount} players • ${s.status}${s.status==='countdown'?' ('+s.countdown+'s)':''}</div>`;
+    d.onclick = ()=>wsSend({type:'joinRoom',stakeId:s.stakeId});
     grid.appendChild(d);
   });
 }
 
 // ─── TRACKER ─────────────────────────────────────────────────
 function buildTracker(){
-  const grid=document.getElementById('trackerGrid');
-  grid.innerHTML='';
+  const grid = document.getElementById('trackerGrid');
+  grid.innerHTML = '';
   for(let i=1;i<=75;i++){
-    const d=document.createElement('div');
-    d.className='t-ball';
-    d.id='tb'+i;
-    d.innerText=i;
+    const d = document.createElement('div');
+    d.className = 't-ball';
+    d.id = 'tb'+i;
+    d.innerText = i;
     grid.appendChild(d);
   }
 }
 
 function resetTrackerBoard(){
   for(let i=1;i<=75;i++){
-    const el=document.getElementById('tb'+i);
-    if(el) el.className='t-ball';
+    const el = document.getElementById('tb'+i);
+    if(el) el.className = 't-ball';
   }
-  prevLastCalled=null;
-  const bar=document.getElementById('claimBar');
-  bar.style.transition='none';
-  bar.style.width='100%';
-  bar.className='claim-bar';
-  // Reset ball display
-  const c=document.getElementById('ballCircle');
-  c.style.background='var(--card)';
-  document.getElementById('ballLetter').innerText='-';
-  document.getElementById('ballNumber').innerText='--';
-  document.getElementById('ballSub').innerText='0/75';
+  prevLastCalled = null;
+  const bar = document.getElementById('claimBar');
+  bar.style.transition = 'none';
+  bar.style.width = '100%';
+  bar.className = 'claim-bar';
+  const c = document.getElementById('ballCircle');
+  c.style.background = 'var(--card)';
+  document.getElementById('ballLetter').innerText = '-';
+  document.getElementById('ballNumber').innerText = '--';
+  document.getElementById('ballSub').innerText = '0/75';
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────
 function numConfig(n){
-  if(n<=15)  return{letter:'B',cls:'cb',color:'var(--b)'};
-  if(n<=30)  return{letter:'I',cls:'ci',color:'var(--i)'};
-  if(n<=45)  return{letter:'N',cls:'cn',color:'var(--n)'};
-  if(n<=60)  return{letter:'G',cls:'cg',color:'var(--g)'};
+  if(n<=15) return{letter:'B',cls:'cb',color:'var(--b)'};
+  if(n<=30) return{letter:'I',cls:'ci',color:'var(--i)'};
+  if(n<=45) return{letter:'N',cls:'cn',color:'var(--n)'};
+  if(n<=60) return{letter:'G',cls:'cg',color:'var(--g)'};
   return{letter:'O',cls:'co',color:'var(--o)'};
 }
 
@@ -674,8 +687,8 @@ function colClass(n){
 }
 
 function setBalance(amt){
-  currentBalance=parseFloat(amt);
-  document.getElementById('balanceEl').innerText=`ETB ${currentBalance.toFixed(2)}`;
+  currentBalance = parseFloat(amt);
+  document.getElementById('balanceEl').innerText = `ETB ${currentBalance.toFixed(2)}`;
 }
 
 function goScreen(id){
@@ -683,36 +696,33 @@ function goScreen(id){
   document.getElementById(id).classList.add('active');
 }
 
+function setActiveNav(navId){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const el = document.getElementById(navId);
+  if(el) el.classList.add('active');
+}
+
 function leaveRoom(){
   wsSend({type:'leaveRoom'});
-  myRoomId=null; myCardId=null;
+  myRoomId = null; myCardId = null;
 }
 
 let toastTimer;
-function showToast(msg,type=''){
-  let t=document.getElementById('_toast');
+function showToast(msg, type=''){
+  let t = document.getElementById('_toast');
   if(!t){
-    t=document.createElement('div');
-    t.id='_toast';
-    t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:20px;font-weight:600;font-size:14px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap';
+    t = document.createElement('div');
+    t.id = '_toast';
+    t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:20px;font-weight:600;font-size:14px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap';
     document.body.appendChild(t);
   }
-  t.innerText=msg;
-  t.style.background=type==='error'?'#ef4444':type==='warn'?'#f59e0b':'#22c55e';
-  t.style.color='#fff';
-  t.style.opacity='1';
+  t.innerText = msg;
+  t.style.background = type==='error'?'#ef4444':type==='warn'?'#f59e0b':'#22c55e';
+  t.style.color = '#fff';
+  t.style.opacity = '1';
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.style.opacity='0',2800);
+  toastTimer = setTimeout(()=>t.style.opacity='0', 2800);
 }
-
-function submitName(){
-  const n=document.getElementById('nameInput').value.trim();
-  if(!n) return;
-  myName=n;
-  wsSend({type:'setName',name:n});
-  document.getElementById('nameModal').style.display='none';
-}
-document.getElementById('nameInput').addEventListener('keydown',e=>{ if(e.key==='Enter') submitName(); });
 
 // ─── INIT ─────────────────────────────────────────────────────
 buildTracker();
