@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
+<title>Beteseb Bingo</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#120626;--panel:#21123a;--card:#2d1b4e;
+  --gold:#facc15;--purple:#8b5cf6;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;
+  --gray:#a78bfa;
+  --b:#3b82f6;--i:#f59e0b;--n:#8b5cf6;--g:#22c55e;--o:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bottom:80px;overflow-x:hidden}
+
+/* NAVBAR */
+.navbar{display:flex;align-items:center;justify-content:space-between;background:var(--panel);padding:14px 16px;border-bottom:2px solid #2d174d;position:sticky;top:0;z-index:100}
+.brand{font-family:'Orbitron',sans-serif;font-weight:900;color:var(--gold);font-size:18px;display:flex;align-items:center;gap:8px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--red);transition:background .3s}
+.dot.on{background:var(--green)}
+.balance-pill{background:var(--gold);color:#000;font-weight:700;padding:7px 14px;border-radius:20px;font-size:14px}
+
+/* SCREENS */
+.screen{display:none;padding:15px;max-width:500px;margin:0 auto;animation:fadeIn .2s ease}
+.screen.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* LOBBY */
+.screen-title{font-family:'Orbitron',sans-serif;text-align:center;margin:15px 0;font-size:16px}
+.stakes-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stake-card{background:var(--panel);border:1px solid #3c2463;border-radius:12px;padding:16px;text-align:center;cursor:pointer;transition:transform .1s,border-color .2s}
+.stake-card:hover{border-color:var(--gold)}
+.stake-card:active{transform:scale(.95)}
+.stake-etb{font-family:'Orbitron',sans-serif;font-size:22px;color:var(--gold);margin-bottom:4px}
+.stake-info{font-size:12px;color:var(--gray)}
+
+/* CARD SELECTION */
+.cd-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cd-countdown{color:var(--gold);font-weight:700;font-size:14px}
+.card-search{width:100%;background:var(--card);border:1px solid #4a2d7a;color:#fff;padding:9px 12px;border-radius:8px;font-size:14px;margin-bottom:10px;outline:none}
+.card-search::placeholder{color:var(--gray)}
+.pool-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;height:360px;overflow-y:auto;padding:4px}
+.pool-btn{background:var(--card);border:1px solid #4a2d7a;color:#fff;padding:10px 4px;border-radius:8px;font-weight:700;cursor:pointer;text-align:center;font-size:12px;transition:all .15s}
+.pool-btn:hover{border-color:var(--gold)}
+.pool-btn.taken{background:#3a1515;color:#ff8888;cursor:not-allowed;opacity:.55}
+.pool-btn.mine{background:var(--green);color:#fff;border-color:#fff}
+.leave-btn{width:100%;margin-top:12px;background:transparent;border:1px solid #4a2d7a;color:var(--gray);padding:11px;border-radius:8px;font-size:14px;cursor:pointer}
+
+/* GAME SCREEN */
+.game-stats-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.stat-box{background:var(--panel);padding:10px 14px;border-radius:10px;border:1px solid #3c2463;text-align:center;min-width:85px}
+.stat-box .lbl{font-size:10px;color:var(--gray);text-transform:uppercase;margin-bottom:3px}
+.stat-box .val{font-family:'Orbitron',sans-serif;font-weight:700;color:var(--gold);font-size:15px}
+.ball-circle{width:72px;height:72px;background:var(--card);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;margin:0 auto;transition:background .2s,transform .15s;border:2px solid rgba(255,255,255,.1);box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.ball-letter{font-size:11px;font-weight:900;color:rgba(255,255,255,.8);margin-top:4px}
+.ball-number{font-size:28px;font-weight:900;color:#fff;line-height:1;margin-bottom:2px}
+.ball-sub{text-align:center;font-size:11px;color:var(--gray);margin-top:5px}
+
+/* CLAIM WINDOW BAR */
+.claim-bar-wrap{height:6px;background:#2d1b4e;border-radius:3px;margin:8px 0 12px;overflow:hidden}
+.claim-bar{height:100%;background:var(--green);width:100%;transition:width linear;border-radius:3px}
+.claim-bar.urgent{background:var(--red)}
+
+/* BINGO CARD */
+.card-container{background:var(--panel);border-radius:16px;padding:12px;margin-bottom:12px;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+.card-id-tag{font-size:12px;color:var(--gray);margin-bottom:8px;padding-left:4px}
+.bingo-header{display:grid;grid-template-columns:repeat(5,1fr);border-radius:8px;overflow:hidden;margin-bottom:8px}
+.bingo-col-head{display:flex;align-items:center;justify-content:center;height:40px;font-family:'Orbitron',sans-serif;font-size:18px;font-weight:900}
+.bh-b{background:var(--b);color:#fff}.bh-i{background:var(--i);color:#fff}.bh-n{background:var(--n);color:#fff}.bh-g{background:var(--g);color:#fff}.bh-o{background:var(--o);color:#fff}
+.bingo-body{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.bingo-cell{display:flex;align-items:center;justify-content:center;height:48px;background:#fff;font-size:15px;font-weight:700;color:#1a0a2e;border-radius:6px;cursor:pointer;user-select:none;transition:background .1s,color .1s,transform .1s}
+.bingo-cell:active{transform:scale(.93)}
+.bingo-cell.marked{background:var(--purple)!important;color:#fff!important}
+.bingo-cell.called-not-marked{background:#fff8dc!important;color:#8b6914!important}
+.bingo-cell.free{background:var(--purple)!important;color:#fff!important;cursor:default}
+
+/* BINGO BUTTON */
+.bingo-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:#271447;border:1px solid #3d226b;color:var(--gray);font-family:'Orbitron',sans-serif;font-size:17px;font-weight:900;padding:14px;border-radius:12px;cursor:pointer;margin-top:14px;transition:all .2s}
+.bingo-btn.ready{animation:flashPulse .7s infinite alternate;background:var(--green)!important;color:#fff!important;border-color:#fff!important;box-shadow:0 0 22px var(--green)}
+.bingo-btn.locked{background:#1a0a0a!important;color:#666!important;cursor:not-allowed;border-color:#333!important}
+@keyframes flashPulse{0%{transform:scale(1);filter:brightness(1)}100%{transform:scale(1.02);filter:brightness(1.25)}}
+
+/* TRACKER */
+.tracker-wrap{background:var(--panel);border-radius:12px;padding:10px;margin-bottom:15px}
+.tracker-grid{display:grid;grid-template-columns:repeat(15,1fr);gap:3px}
+.t-ball{font-size:10px;background:var(--card);color:#7d64b5;text-align:center;padding:4px 0;border-radius:4px;font-weight:700;transition:background .2s,color .2s}
+.t-ball.cb{background:var(--b)!important;color:#fff!important}
+.t-ball.ci{background:var(--i)!important;color:#fff!important}
+.t-ball.cn{background:var(--n)!important;color:#fff!important}
+.t-ball.cg{background:var(--g)!important;color:#fff!important}
+.t-ball.co{background:var(--o)!important;color:#fff!important}
+.t-ball.latest{outline:2px solid #fff;transform:scale(1.1)}
+
+/* WINNER OVERLAY */
+.winner-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:500;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:30px}
+.winner-overlay.show{display:flex;animation:overlayIn .4s ease}
+@keyframes overlayIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+.confetti-row{font-size:40px;animation:confettiBounce 1s infinite alternate}
+@keyframes confettiBounce{0%{transform:translateY(0) rotate(0deg)}100%{transform:translateY(-12px) rotate(10deg)}}
+.winner-trophy{font-size:80px;margin:10px 0;animation:trophySpin 1s ease;filter:drop-shadow(0 0 20px var(--gold))}
+@keyframes trophySpin{0%{transform:scale(0) rotate(-180deg)}60%{transform:scale(1.15) rotate(5deg)}100%{transform:scale(1) rotate(0deg)}}
+.winner-label{font-size:13px;color:var(--gray);text-transform:uppercase;letter-spacing:2px}
+.winner-name{font-family:'Orbitron',sans-serif;font-size:26px;font-weight:900;color:var(--gold);margin:6px 0;text-shadow:0 0 20px var(--gold)}
+.winner-amount{font-size:32px;font-weight:700;color:var(--green);margin:4px 0}
+.winner-split-tag{background:rgba(245,197,24,.15);border:1px solid var(--gold);color:var(--gold);padding:5px 14px;border-radius:20px;font-size:12px;margin:6px 0}
+.winner-msg{font-size:13px;color:var(--gray);margin-top:8px;max-width:280px}
+.disq-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:400;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:30px}
+.disq-overlay.show{display:flex;animation:overlayIn .3s ease}
+.disq-icon{font-size:72px;margin-bottom:12px}
+.disq-title{font-family:'Orbitron',sans-serif;font-size:22px;color:var(--red);margin-bottom:8px}
+.disq-msg{color:var(--gray);font-size:14px;max-width:260px}
+
+/* BOTTOM NAV */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;height:64px;background:var(--panel);border-top:2px solid #2d174d;display:flex;justify-content:space-around;align-items:center;z-index:200}
+.nav-item{display:flex;flex-direction:column;align-items:center;color:var(--gray);font-size:10px;cursor:pointer;font-weight:600;padding:4px 10px}
+.nav-item.active{color:var(--gold)}
+.nav-icon{font-size:22px;margin-bottom:2px}
+.nav-center{width:54px;height:54px;background:linear-gradient(145deg,#ffcc00,#d4aa00);border-radius:50%;border:3px solid var(--bg);transform:translateY(-12px);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,.4);cursor:pointer}
+
+/* NAME MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:600;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--panel);border:1px solid #4a2d7a;border-radius:16px;padding:24px;width:320px;text-align:center}
+.modal h2{font-family:'Orbitron',sans-serif;color:var(--gold);font-size:18px;margin-bottom:8px}
+.modal p{font-size:13px;color:var(--gray);margin-bottom:16px}
+.modal input{width:100%;background:var(--card);border:1px solid #4a2d7a;color:#fff;padding:12px;border-radius:8px;font-size:15px;outline:none;margin-bottom:12px}
+.modal input:focus{border-color:var(--gold)}
+.btn-gold{width:100%;background:var(--gold);color:#000;border:none;padding:13px;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;font-family:'Inter',sans-serif}
+</style>
+</head>
+<body>
+
+<div class="navbar">
+  <div class="brand">BETESEB BINGO <span class="dot" id="connDot"></span></div>
+  <div class="balance-pill" id="balanceEl">ETB 0.00</div>
+</div>
+
+<!-- LOBBY -->
+<div id="screenLobby" class="screen active">
+  <h2 class="screen-title">SELECT STAKE TIER</h2>
+  <div id="stakesGrid" class="stakes-grid"></div>
+</div>
+
+<!-- CARD SELECTION -->
+<div id="screenCards" class="screen">
+  <div class="cd-header">
+    <h2 class="screen-title" style="margin:0">CHOOSE YOUR CARD</h2>
+    <div class="cd-countdown" id="cdCountdown">Waiting...</div>
+  </div>
+  <input class="card-search" type="number" id="cardSearch" placeholder="Search card # (1–400)..." min="1" max="400">
+  <div id="poolGrid" class="pool-grid"></div>
+  <button class="leave-btn" onclick="leaveRoom()">← Leave Room</button>
+</div>
+
+<!-- GAME -->
+<div id="screenGame" class="screen">
+  <div class="game-stats-row">
+    <div class="stat-box"><div class="lbl">Prize Pot</div><div id="potVal" class="val">0</div></div>
+    <div>
+      <div id="ballCircle" class="ball-circle">
+        <span id="ballLetter" class="ball-letter">-</span>
+        <span id="ballNumber" class="ball-number">--</span>
+      </div>
+      <div id="ballSub" class="ball-sub">0/75</div>
+    </div>
+    <div class="stat-box"><div class="lbl">Players</div><div id="playerCountVal" class="val">0</div><div style="font-size:9px;color:var(--green)">in game</div></div>
+  </div>
+
+  <div class="claim-bar-wrap"><div class="claim-bar" id="claimBar"></div></div>
+
+  <div class="card-container">
+    <div id="cardLabel" class="card-id-tag">Card #---</div>
+    <div class="bingo-header">
+      <div class="bingo-col-head bh-b">B</div>
+      <div class="bingo-col-head bh-i">I</div>
+      <div class="bingo-col-head bh-n">N</div>
+      <div class="bingo-col-head bh-g">G</div>
+      <div class="bingo-col-head bh-o">O</div>
+    </div>
+    <div id="cardBody" class="bingo-body"></div>
+    <button id="bingoBtn" class="bingo-btn" onclick="claimBingo()">🎉 BINGO!</button>
+  </div>
+
+  <div class="tracker-wrap">
+    <div id="trackerGrid" class="tracker-grid"></div>
+  </div>
+</div>
+
+<!-- WINNER OVERLAY -->
+<div class="winner-overlay" id="winnerOverlay">
+  <div class="confetti-row">🎊🎉🎊🎉🎊</div>
+  <div class="winner-trophy">🏆</div>
+  <div class="winner-label">WINNER</div>
+  <div class="winner-name" id="winnerName">—</div>
+  <div class="winner-amount" id="winnerAmount">0 ETB</div>
+  <div class="winner-split-tag" id="splitTag" style="display:none">🤝 Split Prize</div>
+  <div class="winner-msg" id="winnerMsg"></div>
+</div>
+
+<!-- DISQUALIFIED OVERLAY -->
+<div class="disq-overlay" id="disqOverlay">
+  <div class="disq-icon">🚫</div>
+  <div class="disq-title">DISQUALIFIED</div>
+  <div class="disq-msg">You claimed BINGO without a valid winning pattern. You have been disqualified from this round.</div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <div class="nav-item active" onclick="goScreen('screenLobby')"><span class="nav-icon">🏠</span><span>HOME</span></div>
+  <div class="nav-item" onclick="goScreen('screenGame')"><span class="nav-icon">🟨</span><span>GAME</span></div>
+  <div class="nav-center"><span style="font-size:24px">👑</span></div>
+  <div class="nav-item" onclick="goScreen('screenCards')"><span class="nav-icon">🃏</span><span>CARDS</span></div>
+  <div class="nav-item"><span class="nav-icon">📊</span><span>LEADERS</span></div>
+</div>
+
+<!-- NAME MODAL -->
+<div class="modal-bg" id="nameModal">
+  <div class="modal">
+    <div style="font-size:40px;margin-bottom:8px">🎱</div>
+    <h2>Welcome!</h2>
+    <p>Enter your name to start playing</p>
+    <input type="text" id="nameInput" placeholder="Your name..." maxlength="20" autocomplete="off">
+    <button class="btn-gold" onclick="submitName()">Play Now →</button>
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────
+let ws, myPlayerId, myName='', myRoomId=null, myStakeId=null;
+let myCardId=null, myCardNumbers=[], markedIndices=new Set(), currentBalance=0;
+let claimWindowOpen=false, claimBarAnim=null;
+let prevLastCalled=null;
+
+// ─── WEBSOCKET ────────────────────────────────────────────────
+function connect(){
+  const proto=location.protocol==='https:'?'wss://':'ws://';
+  ws=new WebSocket(proto+location.host);
+
+  ws.onopen=()=>{
+    document.getElementById('connDot').classList.add('on');
+    // Try to reconnect to active game if we were in one
+    if(myRoomId) ws.send(JSON.stringify({type:'reconnect',roomId:myRoomId}));
+  };
+
+  ws.onclose=()=>{
+    document.getElementById('connDot').classList.remove('on');
+    setTimeout(connect,3000);
+  };
+
+  ws.onerror=()=>{};
+
+  ws.onmessage=e=>{
+    try{ handle(JSON.parse(e.data)); }catch(err){ console.error(err); }
+  };
+}
+
+function wsSend(obj){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(obj)); }
+
+// ─── MESSAGE HANDLER ─────────────────────────────────────────
+function handle(msg){
+  switch(msg.type){
+
+    case 'connected':
+      myPlayerId=msg.playerId;
+      setBalance(msg.balance);
+      if(msg.stakes) renderStakes(msg.stakes);
+      // Show name modal if not named yet
+      if(!myName) document.getElementById('nameModal').style.display='flex';
+      break;
+
+    case 'registered':
+    case 'nameSet':
+      myName=msg.playerName||msg.name;
+      document.getElementById('nameModal').style.display='none';
+      break;
+
+    case 'lobbyUpdate':
+      renderStakes(msg.stakes);
+      break;
+
+    case 'joinedRoom':
+      myRoomId=msg.roomId;
+      myStakeId=msg.stakeId;
+      myCardId=null;
+      markedIndices=new Set([12]);
+      setBalance(msg.balance);
+      goScreen('screenCards');
+      break;
+
+    case 'cardPoolUpdate':
+      renderCardPool(msg.pool);
+      break;
+
+    case 'cardSelected':
+      myCardId=msg.cardId;
+      myCardNumbers=msg.cardNumbers;
+      document.getElementById('cardLabel').innerText=`Card #${msg.cardId}`;
+      break;
+
+    case 'countdown':
+      document.getElementById('cdCountdown').innerText=`Starts in: ${msg.seconds}s`;
+      break;
+
+    case 'waitingForPlayers':
+      document.getElementById('cdCountdown').innerText='Waiting for players...';
+      break;
+
+    case 'yourCard':
+      myCardId=msg.cardId;
+      myCardNumbers=msg.cardNumbers;
+      document.getElementById('cardLabel').innerText=`Card #${msg.cardId}`;
+      document.getElementById('potVal').innerText=`${msg.pot} ETB`;
+      document.getElementById('playerCountVal').innerText=msg.playerCount;
+      markedIndices=new Set([12]);
+      renderCard(myCardNumbers);
+      break;
+
+    case 'gameStart':
+      document.getElementById('potVal').innerText=`${msg.pot} ETB`;
+      document.getElementById('playerCountVal').innerText=msg.players.length;
+      resetTrackerBoard();
+      claimWindowOpen=false;
+      setBingoBtn('idle');
+      goScreen('screenGame');
+      break;
+
+    case 'reconnected':
+      myRoomId=msg.roomId;
+      myCardId=msg.cardId;
+      myCardNumbers=msg.cardNumbers;
+      markedIndices=new Set([12]);
+      document.getElementById('cardLabel').innerText=`Card #${msg.cardId}`;
+      document.getElementById('potVal').innerText=`${msg.pot} ETB`;
+      document.getElementById('playerCountVal').innerText=msg.playerCount;
+      // Mark already-called numbers on tracker
+      msg.calledNumbers.forEach(n=>{
+        const el=document.getElementById('tb'+n);
+        if(el){ el.className='t-ball '+colClass(n); }
+      });
+      renderCard(myCardNumbers);
+      goScreen('screenGame');
+      break;
+
+    case 'numberCalled':
+      onNumberCalled(msg);
+      break;
+
+    case 'claimTooLate':
+      showToast('⏰ Too late! Claim before next number.','warn');
+      break;
+
+    case 'falseClaim':
+      showToast('❌ Not a valid BINGO!','error');
+      break;
+
+    case 'disqualified':
+      showDisqualified();
+      break;
+
+    case 'playerDisqualified':
+      showToast(`🚫 ${msg.playerName} was disqualified!`,'warn');
+      break;
+
+    case 'gameOver':
+      showWinnerOverlay(msg);
+      break;
+
+    case 'backToCardSelection':
+      // Game ended — go back to card selection with same room
+      myRoomId=msg.roomId;
+      myCardId=null;
+      myCardNumbers=[];
+      markedIndices=new Set([12]);
+      claimWindowOpen=false;
+      hideWinnerOverlay();
+      if(msg.balance!==undefined) setBalance(msg.balance);
+      resetTrackerBoard();
+      setBingoBtn('idle');
+      document.getElementById('cdCountdown').innerText='Waiting...';
+      goScreen('screenCards');
+      break;
+
+    case 'balanceUpdate':
+      setBalance(msg.balance);
+      break;
+
+    case 'leftRoom':
+      myRoomId=null; myCardId=null;
+      goScreen('screenLobby');
+      break;
+
+    case 'error':
+      showToast(msg.message,'error');
+      break;
+  }
+}
+
+// ─── NUMBER CALLED ────────────────────────────────────────────
+function onNumberCalled(msg){
+  const n=msg.number;
+  const cfg=numConfig(n);
+
+  // Update ball display
+  const circle=document.getElementById('ballCircle');
+  circle.style.background=cfg.color;
+  circle.style.transform='scale(1.12)';
+  setTimeout(()=>circle.style.transform='scale(1)',180);
+  document.getElementById('ballLetter').innerText=cfg.letter;
+  document.getElementById('ballNumber').innerText=n;
+  document.getElementById('ballSub').innerText=`${msg.callCount}/75`;
+
+  // Update tracker
+  if(prevLastCalled){
+    const prev=document.getElementById('tb'+prevLastCalled);
+    if(prev) prev.classList.remove('latest');
+  }
+  const tb=document.getElementById('tb'+n);
+  if(tb){ tb.className='t-ball '+cfg.cls+' latest'; }
+  prevLastCalled=n;
+
+  // Open claim window + animate bar
+  claimWindowOpen=true;
+  setBingoBtn('ready');
+  startClaimBar(msg.claimWindowMs||4800);
+
+  // Highlight card cells that match this number
+  refreshCardCells();
+}
+
+function startClaimBar(ms){
+  const bar=document.getElementById('claimBar');
+  if(claimBarAnim) clearTimeout(claimBarAnim);
+  bar.style.transition='none';
+  bar.style.width='100%';
+  bar.className='claim-bar';
+  // Force reflow
+  bar.offsetWidth;
+  bar.style.transition=`width ${ms}ms linear`;
+  bar.style.width='0%';
+  if(ms<2000) bar.className='claim-bar urgent';
+
+  claimBarAnim=setTimeout(()=>{
+    claimWindowOpen=false;
+    setBingoBtn('locked');
+  }, ms);
+}
+
+function setBingoBtn(state){
+  const btn=document.getElementById('bingoBtn');
+  btn.className='bingo-btn';
+  if(state==='ready') btn.classList.add('ready');
+  if(state==='locked') btn.classList.add('locked');
+}
+
+// ─── BINGO CLAIM ──────────────────────────────────────────────
+function claimBingo(){
+  if(!claimWindowOpen){ showToast('⏰ Window closed — wait for next number','warn'); return; }
+  if(!myCardId){ showToast('No card selected','error'); return; }
+  wsSend({ type:'claimBingo', cardId:myCardId, markedIndices:Array.from(markedIndices) });
+}
+
+// ─── WINNER OVERLAY ───────────────────────────────────────────
+function showWinnerOverlay(msg){
+  const ov=document.getElementById('winnerOverlay');
+  document.getElementById('winnerName').innerText=msg.winners&&msg.winners.length>0?msg.winners.join(' & '):'-';
+  document.getElementById('winnerAmount').innerText=`${msg.winAmount} ETB`;
+  document.getElementById('splitTag').style.display=msg.isSplit?'inline-block':'none';
+  document.getElementById('winnerMsg').innerText=msg.message||'';
+  ov.classList.add('show');
+
+  // Burst confetti animation
+  startConfetti();
+}
+
+function hideWinnerOverlay(){
+  document.getElementById('winnerOverlay').classList.remove('show');
+  stopConfetti();
+}
+
+// Simple confetti burst using canvas
+let confettiCanvas, confettiCtx, confettiParticles=[], confettiRaf;
+function startConfetti(){
+  if(!confettiCanvas){
+    confettiCanvas=document.createElement('canvas');
+    confettiCanvas.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:501';
+    document.body.appendChild(confettiCanvas);
+  }
+  confettiCanvas.width=window.innerWidth;
+  confettiCanvas.height=window.innerHeight;
+  confettiCtx=confettiCanvas.getContext('2d');
+  confettiParticles=[];
+  const colors=['#facc15','#22c55e','#8b5cf6','#ef4444','#3b82f6','#fff'];
+  for(let i=0;i<120;i++){
+    confettiParticles.push({
+      x:Math.random()*confettiCanvas.width,
+      y:-10-Math.random()*confettiCanvas.height*.5,
+      w:6+Math.random()*8,h:10+Math.random()*8,
+      color:colors[Math.floor(Math.random()*colors.length)],
+      vy:3+Math.random()*5,vx:(Math.random()-.5)*3,
+      rot:Math.random()*360,rspeed:(Math.random()-.5)*8
+    });
+  }
+  animConfetti();
+}
+function animConfetti(){
+  confettiCtx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+  let alive=false;
+  confettiParticles.forEach(p=>{
+    p.y+=p.vy; p.x+=p.vx; p.rot+=p.rspeed;
+    if(p.y<confettiCanvas.height+20) alive=true;
+    confettiCtx.save();
+    confettiCtx.translate(p.x,p.y);
+    confettiCtx.rotate(p.rot*Math.PI/180);
+    confettiCtx.fillStyle=p.color;
+    confettiCtx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+    confettiCtx.restore();
+  });
+  if(alive) confettiRaf=requestAnimationFrame(animConfetti);
+}
+function stopConfetti(){
+  if(confettiRaf) cancelAnimationFrame(confettiRaf);
+  if(confettiCtx) confettiCtx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+}
+
+function showDisqualified(){
+  const ov=document.getElementById('disqOverlay');
+  ov.classList.add('show');
+  setTimeout(()=>ov.classList.remove('show'),4000);
+}
+
+// ─── CARD RENDERING ───────────────────────────────────────────
+function renderCard(nums){
+  const body=document.getElementById('cardBody');
+  body.innerHTML='';
+  nums.forEach((n,i)=>{
+    const cell=document.createElement('div');
+    cell.className='bingo-cell';
+    cell.id='cell'+i;
+    if(i===12){
+      cell.classList.add('free','marked');
+      cell.innerText='FREE';
+    } else {
+      cell.innerText=n;
+      cell.addEventListener('click',()=>toggleCell(i,cell));
+    }
+    body.appendChild(cell);
+  });
+}
+
+function toggleCell(i, cell){
+  if(i===12) return;
+  if(markedIndices.has(i)){ markedIndices.delete(i); cell.classList.remove('marked'); }
+  else { markedIndices.add(i); cell.classList.add('marked'); }
+  refreshCardCells();
+}
+
+function refreshCardCells(){
+  if(!myCardNumbers.length) return;
+  myCardNumbers.forEach((n,i)=>{
+    if(i===12) return;
+    const cell=document.getElementById('cell'+i);
+    if(!cell) return;
+    // Check if this number has been called by server
+    // We trust server - check tracker balls
+    const tb=document.getElementById('tb'+n);
+    const isCalled=tb&&tb.className.includes(' c');
+    if(markedIndices.has(i)){
+      cell.classList.add('marked');
+      cell.classList.remove('called-not-marked');
+    } else if(isCalled){
+      cell.classList.add('called-not-marked');
+    } else {
+      cell.classList.remove('marked','called-not-marked');
+    }
+  });
+
+  // Light up bingo button if looks promising
+  const btn=document.getElementById('bingoBtn');
+  if(btn&&!btn.classList.contains('locked')&&markedIndices.size>=5){
+    btn.classList.add('ready');
+  }
+}
+
+// ─── CARD POOL ────────────────────────────────────────────────
+function renderCardPool(pool){
+  const grid=document.getElementById('poolGrid');
+  const search=parseInt(document.getElementById('cardSearch').value)||0;
+  grid.innerHTML='';
+  pool.forEach(c=>{
+    if(search>0&&c.id!==search) return;
+    const btn=document.createElement('div');
+    btn.className='pool-btn';
+    btn.innerText=`#${c.id}`;
+    if(c.takenByMe){ btn.classList.add('mine'); }
+    else if(c.taken){ btn.classList.add('taken'); }
+    else {
+      btn.onclick=()=>wsSend({type:'selectCard',cardId:c.id});
+    }
+    grid.appendChild(btn);
+  });
+}
+
+document.getElementById('cardSearch').addEventListener('input',()=>{
+  // Re-render with filter — handled on next pool update
+  // For immediate feedback, trigger a manual re-render
+  const allBtns=document.querySelectorAll('.pool-btn');
+  const val=parseInt(document.getElementById('cardSearch').value)||0;
+  allBtns.forEach(b=>{
+    const id=parseInt(b.innerText.replace('#',''));
+    b.style.display=(val===0||id===val)?'':'none';
+  });
+});
+
+// ─── STAKES ───────────────────────────────────────────────────
+function renderStakes(arr){
+  const grid=document.getElementById('stakesGrid');
+  grid.innerHTML='';
+  arr.forEach(s=>{
+    const d=document.createElement('div');
+    d.className='stake-card';
+    d.innerHTML=`<div class="stake-etb">${s.amount} ETB</div><div class="stake-info">${s.playerCount} players • ${s.status}${s.status==='countdown'?' ('+s.countdown+'s)':''}</div>`;
+    d.onclick=()=>wsSend({type:'joinRoom',stakeId:s.stakeId});
+    grid.appendChild(d);
+  });
+}
+
+// ─── TRACKER ─────────────────────────────────────────────────
+function buildTracker(){
+  const grid=document.getElementById('trackerGrid');
+  grid.innerHTML='';
+  for(let i=1;i<=75;i++){
+    const d=document.createElement('div');
+    d.className='t-ball';
+    d.id='tb'+i;
+    d.innerText=i;
+    grid.appendChild(d);
+  }
+}
+
+function resetTrackerBoard(){
+  for(let i=1;i<=75;i++){
+    const el=document.getElementById('tb'+i);
+    if(el) el.className='t-ball';
+  }
+  prevLastCalled=null;
+  const bar=document.getElementById('claimBar');
+  bar.style.transition='none';
+  bar.style.width='100%';
+  bar.className='claim-bar';
+  // Reset ball display
+  const c=document.getElementById('ballCircle');
+  c.style.background='var(--card)';
+  document.getElementById('ballLetter').innerText='-';
+  document.getElementById('ballNumber').innerText='--';
+  document.getElementById('ballSub').innerText='0/75';
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────
+function numConfig(n){
+  if(n<=15)  return{letter:'B',cls:'cb',color:'var(--b)'};
+  if(n<=30)  return{letter:'I',cls:'ci',color:'var(--i)'};
+  if(n<=45)  return{letter:'N',cls:'cn',color:'var(--n)'};
+  if(n<=60)  return{letter:'G',cls:'cg',color:'var(--g)'};
+  return{letter:'O',cls:'co',color:'var(--o)'};
+}
+
+function colClass(n){
+  if(n<=15) return 'cb';
+  if(n<=30) return 'ci';
+  if(n<=45) return 'cn';
+  if(n<=60) return 'cg';
+  return 'co';
+}
+
+function setBalance(amt){
+  currentBalance=parseFloat(amt);
+  document.getElementById('balanceEl').innerText=`ETB ${currentBalance.toFixed(2)}`;
+}
+
+function goScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function leaveRoom(){
+  wsSend({type:'leaveRoom'});
+  myRoomId=null; myCardId=null;
+}
+
+let toastTimer;
+function showToast(msg,type=''){
+  let t=document.getElementById('_toast');
+  if(!t){
+    t=document.createElement('div');
+    t.id='_toast';
+    t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:20px;font-weight:600;font-size:14px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap';
+    document.body.appendChild(t);
+  }
+  t.innerText=msg;
+  t.style.background=type==='error'?'#ef4444':type==='warn'?'#f59e0b':'#22c55e';
+  t.style.color='#fff';
+  t.style.opacity='1';
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.style.opacity='0',2800);
+}
+
+function submitName(){
+  const n=document.getElementById('nameInput').value.trim();
+  if(!n) return;
+  myName=n;
+  wsSend({type:'setName',name:n});
+  document.getElementById('nameModal').style.display='none';
+}
+document.getElementById('nameInput').addEventListener('keydown',e=>{ if(e.key==='Enter') submitName(); });
+
+// ─── INIT ─────────────────────────────────────────────────────
+buildTracker();
+connect();
+</script>
+</body>
+</html>

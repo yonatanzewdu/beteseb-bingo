@@ -1,0 +1,16 @@
+{
+  "name": "beteseb-bingo",
+  "version": "1.0.0",
+  "description": "Real-time Multiplayer Bingo Engine with Synchronized Selection Lobby",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-telegram-bot-api": "^0.67.0",
+    "pg": "^8.21.0",
+    "uuid": "^9.0.1",
+    "ws": "^8.16.0"
+  }
+}
