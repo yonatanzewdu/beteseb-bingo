@@ -704,4 +704,124 @@ app.get('/api/user/:telegramId', (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`\n🎱 Beteseb Bingo Server v3 running on http://localhost:${PORT}\n`);
+  startTelegramBot();
 });
+
+// ─── TELEGRAM BOT (runs inside same process) ──────────────────
+function startTelegramBot() {
+  const BOT_TOKEN = process.env.BOT_TOKEN;
+  const GAME_URL  = process.env.GAME_URL || `https://beteseb-bingo.onrender.com`;
+
+  if (!BOT_TOKEN) {
+    console.log('ℹ️  No BOT_TOKEN set — Telegram bot not started.');
+    return;
+  }
+
+  let TelegramBot;
+  try {
+    TelegramBot = require('node-telegram-bot-api');
+  } catch (e) {
+    console.log('ℹ️  node-telegram-bot-api not installed — bot skipped.');
+    return;
+  }
+
+  const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+  const pendingReg = {}; // telegramId -> { step, name }
+
+  // /start
+  bot.onText(/\/start/, async (msg) => {
+    const tid  = msg.from.id;
+    const name = msg.from.first_name || 'Player';
+    const existing = registeredUsers[tid];
+
+    if (existing) {
+      return bot.sendMessage(msg.chat.id,
+        `👋 Welcome back, *${existing.name}!*\nBalance: *${existing.balance} ETB*`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: { inline_keyboard: [[{
+            text: '🎮 Play Beteseb Bingo',
+            web_app: { url: `${GAME_URL}?tid=${tid}` }
+          }]]}
+        }
+      );
+    }
+
+    pendingReg[tid] = { step: 'ask_name' };
+    bot.sendMessage(msg.chat.id,
+      `🎱 Welcome to *Beteseb Bingo!*\n\nWhat should we call you?`,
+      { parse_mode: 'Markdown' }
+    );
+  });
+
+  // Handle text — name entry
+  bot.on('message', (msg) => {
+    const tid = msg.from.id;
+    const pending = pendingReg[tid];
+    if (!pending || !msg.text || msg.text.startsWith('/')) return;
+
+    if (pending.step === 'ask_name') {
+      pending.name = msg.text.trim().substring(0, 30);
+      pending.step = 'ask_phone';
+      bot.sendMessage(msg.chat.id,
+        `Nice to meet you, *${pending.name}!* 👋\n\nPlease share your phone number:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            keyboard: [[{ text: '📱 Share Phone Number', request_contact: true }]],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          }
+        }
+      );
+    }
+  });
+
+  // Handle contact — phone shared
+  bot.on('contact', (msg) => {
+    const tid = msg.from.id;
+    const pending = pendingReg[tid];
+    if (!pending) return;
+
+    const phone = msg.contact.phone_number;
+    const name  = pending.name || msg.from.first_name || 'Player';
+
+    registeredUsers[tid] = { name, phone, balance: 500, createdAt: new Date() };
+    delete pendingReg[tid];
+
+    bot.sendMessage(msg.chat.id,
+      `✅ *Registered!*\n\nName: *${name}*\nPhone: ${phone}\nBalance: *500 ETB*\n\nTap below to play! 🎱`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[{
+            text: '🎮 Play Beteseb Bingo',
+            web_app: { url: `${GAME_URL}?tid=${tid}` }
+          }]],
+          remove_keyboard: true
+        }
+      }
+    );
+  });
+
+  // /balance
+  bot.onText(/\/balance/, (msg) => {
+    const user = registeredUsers[msg.from.id];
+    if (!user) return bot.sendMessage(msg.chat.id, 'Please /start to register first.');
+    bot.sendMessage(msg.chat.id, `💰 Balance: *${user.balance} ETB*`, { parse_mode: 'Markdown' });
+  });
+
+  // /play
+  bot.onText(/\/play/, (msg) => {
+    const user = registeredUsers[msg.from.id];
+    if (!user) return bot.sendMessage(msg.chat.id, 'Please /start to register first.');
+    bot.sendMessage(msg.chat.id, `Ready to play? 🎱`, {
+      reply_markup: { inline_keyboard: [[{
+        text: '🎮 Open Game',
+        web_app: { url: `${GAME_URL}?tid=${msg.from.id}` }
+      }]]}
+    });
+  });
+
+  console.log('🤖 Telegram bot started successfully!');
+}
