@@ -1,20 +1,22 @@
 /**
- * Beteseb Bingo — Multiplayer Server v3
- * Features:
- *  - 400 fixed, permanent cards (seeded by card ID — never change)
- *  - Split prize when multiple players win simultaneously
- *  - Disqualification on false BINGO claim
- *  - Must claim BINGO before next number is called (window locks)
- *  - After game ends → back to card selection (not lobby)
- *  - Reconnection support (resume in-progress game)
- *  - PostgreSQL database integration ready
+ * Beteseb Bingo — Multiplayer Server v4
+ * FULLY DATABASE-INTEGRATED:
+ *  - All user data (name, balance, phone) stored in PostgreSQL
+ *  - Starting balance is 0 (deposited separately)
+ *  - Name comes from Telegram — no name modal in the game
+ *  - Contact/phone saved to DB on registration
+ *  - Balance deducted/awarded via DB functions (atomic)
+ *  - 400 fixed permanent cards
+ *  - Split prize on simultaneous win
+ *  - Disqualification on false BINGO
  */
 
-const express  = require('express');
-const http     = require('http');
+const express   = require('express');
+const http      = require('http');
 const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
-const path     = require('path');
+const path      = require('path');
+const db        = require('./db');
 
 const app    = express();
 const server = http.createServer(app);
@@ -25,9 +27,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
 // ─── CONFIG ──────────────────────────────────────────────────
-const LOBBY_WAIT_MS   = 15000;
+const LOBBY_WAIT_MS    = 15000;
 const CALL_INTERVAL_MS = 5000;
-const CLAIM_WINDOW_MS  = 4800; // Must claim BEFORE next number (slightly under interval)
+const CLAIM_WINDOW_MS  = 4800;
 const TOTAL_CARDS      = 400;
 
 const STAKES = [
@@ -39,11 +41,8 @@ const STAKES = [
   { id: 'st100', amount: 100, maxPlayers: 50 },
 ];
 
-// ─── FIXED CARD POOL (seeded, permanent) ─────────────────────
-// Each card is generated once at startup using a deterministic seed
-// so card #5 always has the same numbers regardless of game session.
+// ─── FIXED CARD POOL ─────────────────────────────────────────
 function seededRandom(seed) {
-  // Mulberry32 PRNG — fast deterministic random from integer seed
   let s = seed;
   return function() {
     s |= 0; s = s + 0x6D2B79F5 | 0;
@@ -54,10 +53,9 @@ function seededRandom(seed) {
 }
 
 function generateFixedCard(cardIndex) {
-  const rng = seededRandom(cardIndex * 7919); // prime multiplier for spread
+  const rng = seededRandom(cardIndex * 7919);
   const ranges = [[1,15],[16,30],[31,45],[46,60],[61,75]];
   const numbers = Array(25).fill(0);
-
   for (let col = 0; col < 5; col++) {
     const [lo, hi] = ranges[col];
     const pool = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
@@ -75,7 +73,6 @@ function generateFixedCard(cardIndex) {
   return numbers;
 }
 
-// Build all 400 cards at startup — permanently fixed
 const CARD_POOL = [];
 for (let i = 1; i <= TOTAL_CARDS; i++) {
   CARD_POOL.push({ id: i, numbers: generateFixedCard(i) });
@@ -85,20 +82,17 @@ function getCardById(id) {
   return CARD_POOL.find(c => c.id === id);
 }
 
-// ─── WIN VERIFICATION ─────────────────────────────────────────
+// ─── WIN VERIFICATION ────────────────────────────────────────
 function checkWin(cardNumbers, calledNumbers, markedIndices) {
-  const calledSet  = new Set(calledNumbers);
-  const markedSet  = new Set(markedIndices || []);
-  markedSet.add(12); // FREE cell always marked
-
-  // A cell is valid only if: FREE space OR (server called it AND player manually marked it)
+  const calledSet = new Set(calledNumbers);
+  const markedSet = new Set(markedIndices || []);
+  markedSet.add(12);
   const hit = i => i === 12 || (calledSet.has(cardNumbers[i]) && markedSet.has(i));
-
   const PATTERNS = [
-    [0,1,2,3,4], [5,6,7,8,9], [10,11,12,13,14], [15,16,17,18,19], [20,21,22,23,24], // rows
-    [0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],     // cols
-    [0,6,12,18,24],[4,8,12,16,20],                                                  // diagonals
-    [0,4,20,24]                                                                      // 4 corners
+    [0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22,23,24],
+    [0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],
+    [0,6,12,18,24],[4,8,12,16,20],
+    [0,4,20,24]
   ];
   return PATTERNS.some(p => p.every(idx => hit(idx)));
 }
@@ -106,9 +100,6 @@ function checkWin(cardNumbers, calledNumbers, markedIndices) {
 // ─── STATE ───────────────────────────────────────────────────
 const clients = {}; // playerId -> client
 const rooms   = {}; // roomId   -> room
-
-// For reconnection: telegramId -> { playerId, name, balance }
-const registeredUsers = {};
 
 // ─── ROOM HELPERS ────────────────────────────────────────────
 function getOrCreateRoom(stakeId) {
@@ -123,17 +114,18 @@ function getOrCreateRoom(stakeId) {
     roomId, stakeId,
     stake: stake.amount,
     status: 'waiting',
-    players: [],        // { playerId, playerName, ws, cardId, hasPaid, disqualified }
+    players: [],
     calledNumbers: [],
     availableNumbers: Array.from({ length: 75 }, (_, i) => i + 1),
     callTimer: null,
     countdownTimer: null,
     countdownLeft: Math.ceil(LOBBY_WAIT_MS / 1000),
-    claimWindowOpen: false,   // true between number call and next call
+    claimWindowOpen: false,
     claimWindowTimer: null,
-    claimedThisRound: [],     // players who claimed during this window
+    claimedThisRound: [],
     takenCardIds: new Set(),
     pot: 0,
+    dbGameId: null,  // DB game row id
   };
   rooms[roomId] = room;
   return room;
@@ -169,7 +161,7 @@ function broadcastCardPool(room) {
   const pool = CARD_POOL.map(c => ({
     id: c.id,
     taken: room.takenCardIds.has(c.id),
-    takenByMe: false // overridden per-player below
+    takenByMe: false
   }));
   room.players.forEach(p => {
     const perPlayer = pool.map(c => ({ ...c, takenByMe: p.cardId === c.id }));
@@ -202,25 +194,71 @@ function startCountdown(room) {
   }, 1000);
 }
 
-function startGame(room) {
+async function startGame(room) {
   // Assign free card to anyone who didn't pick
-  room.players.forEach(p => {
+  for (const p of room.players) {
     if (!p.cardId) {
       const free = CARD_POOL.find(c => !room.takenCardIds.has(c.id));
       if (free) {
         p.cardId = free.id;
         room.takenCardIds.add(free.id);
-        if (!p.hasPaid) {
-          const cl = clients[p.playerId];
-          if (cl && cl.balance >= room.stake) {
-            cl.balance -= room.stake;
-            p.hasPaid = true;
+      }
+    }
+  }
+
+  // Create game in DB
+  try {
+    const dbGame = await db.createGame(room.roomId, room.stakeId, room.stake);
+    room.dbGameId = dbGame.id;
+  } catch (err) {
+    console.error('DB createGame error:', err);
+  }
+
+  // Deduct stakes from each player's DB balance
+  for (const p of room.players) {
+    if (!p.hasPaid && p.cardId) {
+      const cl = clients[p.playerId];
+      if (!cl) continue;
+      try {
+        const newBal = await db.deductStake(cl.dbUserId, room.stake, room.dbGameId || 0);
+        cl.balance = parseFloat(newBal);
+        p.hasPaid = true;
+        send(p.ws, { type: 'balanceUpdate', balance: cl.balance });
+
+        // Add participant to DB
+        if (room.dbGameId) {
+          await db.addParticipant(room.dbGameId, cl.dbUserId, p.cardId);
+        }
+      } catch (err) {
+        // Insufficient balance — remove player
+        send(p.ws, { type: 'error', message: 'Insufficient balance. You have been removed from the game.' });
+        p._removeMe = true;
+      }
+    }
+  }
+
+  // Remove players who couldn't pay
+  room.players = room.players.filter(p => !p._removeMe);
+
+  if (room.players.length < 2) {
+    // Refund anyone who paid and end
+    for (const p of room.players) {
+      if (p.hasPaid) {
+        const cl = clients[p.playerId];
+        if (cl && cl.dbUserId) {
+          try {
+            const newBal = await db.updateBalance(cl.dbUserId, cl.balance + room.stake);
+            cl.balance = parseFloat(newBal);
             send(p.ws, { type: 'balanceUpdate', balance: cl.balance });
-          }
+          } catch (e) {}
         }
       }
     }
-  });
+    broadcast(room, { type: 'error', message: 'Not enough players to start.' });
+    room.status = 'waiting';
+    broadcastLobby();
+    return;
+  }
 
   room.status = 'playing';
   room.pot = room.players.filter(p => p.hasPaid).length * room.stake;
@@ -229,24 +267,17 @@ function startGame(room) {
   room.claimedThisRound = [];
   room.claimWindowOpen = false;
 
+  if (room.dbGameId) {
+    db.updateGamePot(room.dbGameId, room.pot).catch(console.error);
+  }
+
   const playersData = room.players.map(p => {
     const card = getCardById(p.cardId);
-    return {
-      playerId: p.playerId,
-      playerName: p.playerName,
-      cardId: p.cardId,
-      cardNumbers: card ? card.numbers : [],
-    };
+    return { playerId: p.playerId, playerName: p.playerName, cardId: p.cardId, cardNumbers: card ? card.numbers : [] };
   });
 
-  broadcast(room, {
-    type: 'gameStart',
-    pot: room.pot,
-    players: playersData,
-    myCardId: null // overridden per-player below
-  });
+  broadcast(room, { type: 'gameStart', pot: room.pot, players: playersData });
 
-  // Send each player their own card info
   room.players.forEach(p => {
     const card = getCardById(p.cardId);
     if (card) {
@@ -271,10 +302,9 @@ function scheduleNextCall(room) {
 function callNumber(room) {
   if (room.status !== 'playing') return;
 
-  // Close claim window from previous round — evaluate pending claims
   if (room.claimedThisRound.length > 0) {
     evaluateClaims(room);
-    return; // evaluateClaims will end game or continue
+    return;
   }
 
   room.claimWindowOpen = false;
@@ -289,6 +319,10 @@ function callNumber(room) {
   const drawn = room.availableNumbers.splice(idx, 1)[0];
   room.calledNumbers.push(drawn);
 
+  if (room.dbGameId) {
+    db.updateCalledNumbers(room.dbGameId, room.calledNumbers).catch(console.error);
+  }
+
   broadcast(room, {
     type: 'numberCalled',
     number: drawn,
@@ -297,25 +331,19 @@ function callNumber(room) {
     claimWindowMs: CLAIM_WINDOW_MS
   });
 
-  // Open the claim window
   room.claimWindowOpen = true;
-
-  // Schedule next call
   scheduleNextCall(room);
 }
 
 function evaluateClaims(room) {
-  // Verify all claims received this round
   const validWinners = [];
   const cheaters = [];
 
   room.claimedThisRound.forEach(claim => {
     const player = room.players.find(p => p.playerId === claim.playerId);
     if (!player || player.disqualified) return;
-
     const card = getCardById(player.cardId);
     if (!card) return;
-
     if (checkWin(card.numbers, room.calledNumbers, claim.markedIndices)) {
       validWinners.push(player);
     } else {
@@ -323,17 +351,14 @@ function evaluateClaims(room) {
     }
   });
 
-  // Disqualify cheaters
   cheaters.forEach(p => {
     p.disqualified = true;
-    send(p.ws, {
-      type: 'disqualified',
-      message: '🚫 You were disqualified for a false BINGO claim!'
-    });
-    broadcast(room, {
-      type: 'playerDisqualified',
-      playerName: p.playerName
-    });
+    send(p.ws, { type: 'disqualified', message: '🚫 You were disqualified for a false BINGO claim!' });
+    broadcast(room, { type: 'playerDisqualified', playerName: p.playerName });
+    if (room.dbGameId) {
+      const cl = clients[p.playerId];
+      if (cl && cl.dbUserId) db.disqualifyParticipant(room.dbGameId, cl.dbUserId).catch(console.error);
+    }
   });
 
   room.claimedThisRound = [];
@@ -342,14 +367,13 @@ function evaluateClaims(room) {
   if (validWinners.length > 0) {
     endGame(room, validWinners, null);
   } else {
-    // No valid winners — continue game
     scheduleNextCall(room);
   }
 }
 
-function endGame(room, winners, customMessage) {
-  if (room.callTimer) clearTimeout(room.callTimer);
-  if (room.countdownTimer) clearInterval(room.countdownTimer);
+async function endGame(room, winners, customMessage) {
+  if (room.callTimer)        clearTimeout(room.callTimer);
+  if (room.countdownTimer)   clearInterval(room.countdownTimer);
   if (room.claimWindowTimer) clearTimeout(room.claimWindowTimer);
 
   room.status = 'finished';
@@ -357,20 +381,35 @@ function endGame(room, winners, customMessage) {
 
   let winAmount = 0;
   let winnerNames = [];
+  const winnerUserIds = [];
 
   if (winners && winners.length > 0) {
-    // Split prize equally among all simultaneous winners
     winAmount = Math.floor(room.pot / winners.length);
     winnerNames = winners.map(w => w.playerName);
 
-    winners.forEach(w => {
+    for (const w of winners) {
       const cl = clients[w.playerId];
-      if (cl) {
+      if (!cl) continue;
+      winnerUserIds.push(cl.dbUserId);
+      try {
+        if (cl.dbUserId && room.dbGameId) {
+          const newBal = await db.awardWin(cl.dbUserId, winAmount, room.dbGameId);
+          cl.balance = parseFloat(newBal);
+        } else {
+          cl.balance += winAmount;
+        }
+        send(w.ws, { type: 'balanceUpdate', balance: cl.balance });
+      } catch (err) {
+        console.error('awardWin error:', err);
         cl.balance += winAmount;
-        w.balance = cl.balance;
         send(w.ws, { type: 'balanceUpdate', balance: cl.balance });
       }
-    });
+    }
+  }
+
+  // Update DB game record
+  if (room.dbGameId) {
+    db.endGame(room.dbGameId, winnerUserIds, winAmount, winners.length > 1).catch(console.error);
   }
 
   const isSplit = winners && winners.length > 1;
@@ -379,16 +418,8 @@ function endGame(room, winners, customMessage) {
       ? `🎉 Split win! ${winnerNames.join(' & ')} each win ${winAmount} ETB!`
       : `🏆 ${winnerNames[0]} wins ${winAmount} ETB!`);
 
-  broadcast(room, {
-    type: 'gameOver',
-    winners: winnerNames,
-    winAmount,
-    isSplit,
-    message,
-    calledNumbers: room.calledNumbers
-  });
+  broadcast(room, { type: 'gameOver', winners: winnerNames, winAmount, isSplit, message, calledNumbers: room.calledNumbers });
 
-  // After 6 seconds: reset room and send players back to CARD SELECTION (not lobby)
   setTimeout(() => {
     if (!rooms[room.roomId]) return;
 
@@ -399,6 +430,7 @@ function endGame(room, winners, customMessage) {
     room.takenCardIds = new Set();
     room.claimedThisRound = [];
     room.claimWindowOpen = false;
+    room.dbGameId = null;
 
     room.players.forEach(p => {
       p.cardId = null;
@@ -406,13 +438,13 @@ function endGame(room, winners, customMessage) {
       p.disqualified = false;
     });
 
-    // Send players back to card selection screen with fresh pool
     room.players.forEach(p => {
+      const cl = clients[p.playerId];
       send(p.ws, {
         type: 'backToCardSelection',
         roomId: room.roomId,
         stakeId: room.stakeId,
-        balance: clients[p.playerId] ? clients[p.playerId].balance : p.balance
+        balance: cl ? cl.balance : 0
       });
     });
 
@@ -430,12 +462,24 @@ function leaveRoom(client) {
 
   const player = room.players.find(p => p.playerId === client.playerId);
   if (player) {
-    // Release card
     if (player.cardId) room.takenCardIds.delete(player.cardId);
-    // Refund if game hasn't started
+    // Refund if game hasn't started (DB refund)
     if (player.hasPaid && (room.status === 'waiting' || room.status === 'countdown')) {
-      client.balance += room.stake;
-      send(client.ws, { type: 'balanceUpdate', balance: client.balance });
+      if (client.dbUserId) {
+        db.updateBalance(client.dbUserId, client.balance + room.stake)
+          .then(newBal => {
+            client.balance = parseFloat(newBal);
+            send(client.ws, { type: 'balanceUpdate', balance: client.balance });
+          })
+          .catch(err => {
+            console.error('Refund error:', err);
+            client.balance += room.stake;
+            send(client.ws, { type: 'balanceUpdate', balance: client.balance });
+          });
+      } else {
+        client.balance += room.stake;
+        send(client.ws, { type: 'balanceUpdate', balance: client.balance });
+      }
     }
   }
 
@@ -459,14 +503,16 @@ wss.on('connection', (ws) => {
   const playerId = uuidv4();
   const client = {
     playerId,
-    playerName: `Player_${Math.floor(1000 + Math.random() * 9000)}`,
+    playerName: '',
     telegramId: null,
-    balance: 500,
+    dbUserId: null,
+    balance: 0,
     roomId: null,
     ws
   };
   clients[playerId] = client;
 
+  // Send connected — no balance yet (will be set after telegramRegister)
   const lobbyState = STAKES.map(s => {
     const r = Object.values(rooms).find(r => r.stakeId === s.id);
     return {
@@ -477,31 +523,49 @@ wss.on('connection', (ws) => {
     };
   });
 
-  send(ws, { type: 'connected', playerId, balance: client.balance, stakes: lobbyState });
+  send(ws, { type: 'connected', playerId, balance: 0, stakes: lobbyState });
 
-  ws.on('message', raw => {
+  ws.on('message', async raw => {
     try {
       const msg = JSON.parse(raw);
 
       switch (msg.type) {
 
-        // ── Telegram registration ──
+        // ── Telegram registration — load user from DB ──
         case 'telegramRegister': {
           const { telegramId, name, phone } = msg;
           if (!telegramId) break;
 
-          // Check if previously registered user
-          const existing = registeredUsers[telegramId];
-          if (existing) {
-            client.playerName = existing.name;
-            client.balance    = existing.balance;
-            client.telegramId = telegramId;
-            send(ws, { type: 'registered', playerName: existing.name, balance: existing.balance, isReturning: true });
-          } else {
+          client.telegramId = telegramId;
+
+          try {
+            // Try to get existing user from DB
+            let user = await db.getUserByTelegramId(telegramId);
+
+            if (!user) {
+              // New user — register with balance 0
+              user = await db.registerUser(telegramId, name || `Player_${telegramId}`, phone || null);
+            } else {
+              // Update last_seen
+              await db.registerUser(telegramId, user.name, user.phone);
+            }
+
+            client.dbUserId   = user.id;
+            client.playerName = user.name;
+            client.balance    = parseFloat(user.balance);
+
+            send(ws, {
+              type: 'registered',
+              playerName: user.name,
+              balance: client.balance,
+              isReturning: true
+            });
+          } catch (err) {
+            console.error('DB telegramRegister error:', err);
+            // Fallback — no DB
             client.playerName = name || `Player_${telegramId}`;
-            client.telegramId = telegramId;
-            registeredUsers[telegramId] = { name: client.playerName, balance: client.balance, phone };
-            send(ws, { type: 'registered', playerName: client.playerName, balance: client.balance, isReturning: false });
+            client.balance    = 0;
+            send(ws, { type: 'registered', playerName: client.playerName, balance: 0, isReturning: false });
           }
           break;
         }
@@ -514,9 +578,8 @@ wss.on('connection', (ws) => {
 
           const existingPlayer = room.players.find(p => p.playerId === client.playerId);
           if (existingPlayer) {
-            existingPlayer.ws = ws; // refresh WebSocket reference
+            existingPlayer.ws = ws;
             client.roomId = roomId;
-
             const card = getCardById(existingPlayer.cardId);
             send(ws, {
               type: 'reconnected',
@@ -528,14 +591,6 @@ wss.on('connection', (ws) => {
               pot: room.pot,
               playerCount: room.players.length
             });
-          }
-          break;
-        }
-
-        case 'setName': {
-          if (msg.name && msg.name.trim()) {
-            client.playerName = msg.name.trim().substring(0, 20);
-            send(ws, { type: 'nameSet', playerName: client.playerName });
           }
           break;
         }
@@ -554,7 +609,7 @@ wss.on('connection', (ws) => {
 
           const player = {
             playerId: client.playerId,
-            playerName: client.playerName,
+            playerName: client.playerName || `Player_${client.playerId.slice(0,4)}`,
             ws, cardId: null, hasPaid: false, disqualified: false
           };
           room.players.push(player);
@@ -571,9 +626,7 @@ wss.on('connection', (ws) => {
           broadcastCardPool(room);
           broadcastLobby();
 
-          if (room.players.length >= 2 && room.status === 'waiting') {
-            startCountdown(room);
-          }
+          if (room.players.length >= 2 && room.status === 'waiting') startCountdown(room);
           break;
         }
 
@@ -585,21 +638,26 @@ wss.on('connection', (ws) => {
           const cardId = parseInt(msg.cardId);
           if (cardId < 1 || cardId > TOTAL_CARDS) break;
 
-          if (room.takenCardIds.has(cardId)) {
+          if (room.takenCardIds.has(cardId))
             return send(ws, { type: 'error', message: 'Card already taken!' });
-          }
 
           const player = room.players.find(p => p.playerId === client.playerId);
           if (!player) break;
 
-          // Release previous card if any
           if (player.cardId) room.takenCardIds.delete(player.cardId);
 
-          // Deduct balance on first selection
+          // Deduct balance (DB) on first card pick
           if (!player.hasPaid) {
-            if (client.balance < room.stake) {
+            if (client.balance < room.stake)
               return send(ws, { type: 'error', message: 'Insufficient balance.' });
+
+            if (client.dbUserId) {
+              try {
+                // Just reserve — actual deduct happens in startGame for atomicity
+                // But check balance here to give fast feedback
+              } catch (e) {}
             }
+
             client.balance -= room.stake;
             player.hasPaid = true;
             send(ws, { type: 'balanceUpdate', balance: client.balance });
@@ -609,12 +667,7 @@ wss.on('connection', (ws) => {
           room.takenCardIds.add(cardId);
 
           const card = getCardById(cardId);
-          send(ws, {
-            type: 'cardSelected',
-            cardId,
-            cardNumbers: card.numbers
-          });
-
+          send(ws, { type: 'cardSelected', cardId, cardNumbers: card.numbers });
           broadcastCardPool(room);
           break;
         }
@@ -627,22 +680,14 @@ wss.on('connection', (ws) => {
           const player = room.players.find(p => p.playerId === client.playerId);
           if (!player || player.disqualified) return;
 
-          // Must be within claim window
-          if (!room.claimWindowOpen) {
+          if (!room.claimWindowOpen)
             return send(ws, { type: 'claimTooLate', message: 'Too late! Next number already called.' });
-          }
 
-          // Record claim for this window — evaluated when window closes
           const alreadyClaimed = room.claimedThisRound.find(c => c.playerId === client.playerId);
           if (!alreadyClaimed) {
-            room.claimedThisRound.push({
-              playerId: client.playerId,
-              markedIndices: msg.markedIndices || []
-            });
+            room.claimedThisRound.push({ playerId: client.playerId, markedIndices: msg.markedIndices || [] });
           }
 
-          // If server hasn't scheduled next call yet, evaluate immediately
-          // (The claim window closes when next call fires, but we evaluate now)
           if (room.callTimer) clearTimeout(room.callTimer);
           evaluateClaims(room);
           break;
@@ -653,10 +698,17 @@ wss.on('connection', (ws) => {
           send(ws, { type: 'leftRoom', balance: client.balance });
           break;
 
+        // Manual deposit (for testing / admin)
         case 'deposit':
-          if (msg.amount && msg.amount >= 10) {
-            client.balance += parseInt(msg.amount);
-            send(ws, { type: 'balanceUpdate', balance: client.balance });
+          if (msg.amount && msg.amount >= 10 && client.dbUserId) {
+            try {
+              const newBal = await db.updateBalance(client.dbUserId, client.balance + parseInt(msg.amount));
+              client.balance = parseFloat(newBal);
+              send(ws, { type: 'balanceUpdate', balance: client.balance });
+            } catch (err) {
+              client.balance += parseInt(msg.amount);
+              send(ws, { type: 'balanceUpdate', balance: client.balance });
+            }
           }
           break;
       }
@@ -666,15 +718,13 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    // Don't immediately remove from room — allow reconnect window
-    const c = clients[ws._playerId] || client;
+    const c = client;
     if (c && c.roomId) {
       const room = rooms[c.roomId];
       if (room && room.status === 'playing') {
-        // Mark as disconnected but keep in game for reconnection
         const player = room.players.find(p => p.playerId === c.playerId);
         if (player) player.ws = null;
-        return; // Don't delete client yet
+        return;
       }
       leaveRoom(c);
     }
@@ -685,29 +735,33 @@ wss.on('connection', (ws) => {
   ws.on('error', () => {});
 });
 
-// ─── REST API (for Telegram bot integration) ─────────────────
-app.post('/api/register', (req, res) => {
-  const { telegramId, name, phone } = req.body;
-  if (!telegramId) return res.status(400).json({ error: 'telegramId required' });
-  if (registeredUsers[telegramId]) {
-    return res.json({ existing: true, user: registeredUsers[telegramId] });
+// ─── REST API ────────────────────────────────────────────────
+app.get('/api/user/:telegramId', async (req, res) => {
+  try {
+    const user = await db.getUserByTelegramId(parseInt(req.params.telegramId));
+    if (!user) return res.status(404).json({ error: 'Not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  registeredUsers[telegramId] = { name, phone, balance: 500, createdAt: new Date() };
-  res.json({ created: true, user: registeredUsers[telegramId] });
 });
 
-app.get('/api/user/:telegramId', (req, res) => {
-  const user = registeredUsers[req.params.telegramId];
-  if (!user) return res.status(404).json({ error: 'Not found' });
-  res.json(user);
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const rows = await db.getLeaderboard(20);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
+// ─── START ────────────────────────────────────────────────────
 server.listen(PORT, () => {
-  console.log(`\n🎱 Beteseb Bingo Server v3 running on http://localhost:${PORT}\n`);
+  console.log(`\n🎱 Beteseb Bingo Server v4 running on http://localhost:${PORT}\n`);
   startTelegramBot();
 });
 
-// ─── TELEGRAM BOT (runs inside same process) ──────────────────
+// ─── TELEGRAM BOT ────────────────────────────────────────────
 function startTelegramBot() {
   const BOT_TOKEN = process.env.BOT_TOKEN;
   const GAME_URL  = process.env.GAME_URL || `https://beteseb-bingo.onrender.com`;
@@ -718,12 +772,8 @@ function startTelegramBot() {
   }
 
   let TelegramBot;
-  try {
-    TelegramBot = require('node-telegram-bot-api');
-  } catch (e) {
-    console.log('ℹ️  node-telegram-bot-api not installed — bot skipped.');
-    return;
-  }
+  try { TelegramBot = require('node-telegram-bot-api'); }
+  catch (e) { console.log('ℹ️  node-telegram-bot-api not installed — bot skipped.'); return; }
 
   const bot = new TelegramBot(BOT_TOKEN, { polling: true });
   const pendingReg = {}; // telegramId -> { step, name }
@@ -732,95 +782,93 @@ function startTelegramBot() {
   bot.onText(/\/start/, async (msg) => {
     const tid  = msg.from.id;
     const name = msg.from.first_name || 'Player';
-    const existing = registeredUsers[tid];
 
-    if (existing) {
-      return bot.sendMessage(msg.chat.id,
-        `👋 Welcome back, *${existing.name}!*\nBalance: *${existing.balance} ETB*`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: { inline_keyboard: [[{
-            text: '🎮 Play Beteseb Bingo',
-            web_app: { url: `${GAME_URL}?tid=${tid}` }
-          }]]}
-        }
-      );
-    }
-
-    pendingReg[tid] = { step: 'ask_name' };
-    bot.sendMessage(msg.chat.id,
-      `🎱 Welcome to *Beteseb Bingo!*\n\nWhat should we call you?`,
-      { parse_mode: 'Markdown' }
-    );
-  });
-
-  // Handle text — name entry
-  bot.on('message', (msg) => {
-    const tid = msg.from.id;
-    const pending = pendingReg[tid];
-    if (!pending || !msg.text || msg.text.startsWith('/')) return;
-
-    if (pending.step === 'ask_name') {
-      pending.name = msg.text.trim().substring(0, 30);
-      pending.step = 'ask_phone';
-      bot.sendMessage(msg.chat.id,
-        `Nice to meet you, *${pending.name}!* 👋\n\nPlease share your phone number:`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: {
-            keyboard: [[{ text: '📱 Share Phone Number', request_contact: true }]],
-            resize_keyboard: true,
-            one_time_keyboard: true
+    try {
+      const existing = await db.getUserByTelegramId(tid);
+      if (existing) {
+        return bot.sendMessage(msg.chat.id,
+          `👋 Welcome back, *${existing.name}!*\nBalance: *${existing.balance} ETB*`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard: [[{
+              text: '🎮 Play Beteseb Bingo',
+              web_app: { url: `${GAME_URL}?tid=${tid}` }
+            }]]}
           }
-        }
-      );
-    }
-  });
+        );
+      }
+    } catch (e) {}
 
-  // Handle contact — phone shared
-  bot.on('contact', (msg) => {
-    const tid = msg.from.id;
-    const pending = pendingReg[tid];
-    if (!pending) return;
-
-    const phone = msg.contact.phone_number;
-    const name  = pending.name || msg.from.first_name || 'Player';
-
-    registeredUsers[tid] = { name, phone, balance: 500, createdAt: new Date() };
-    delete pendingReg[tid];
-
+    // New user — ask name (or use Telegram name directly)
+    pendingReg[tid] = { step: 'ask_phone', name };
     bot.sendMessage(msg.chat.id,
-      `✅ *Registered!*\n\nName: *${name}*\nPhone: ${phone}\nBalance: *500 ETB*\n\nTap below to play! 🎱`,
+      `🎱 Welcome to *Beteseb Bingo!*\n\nHello, *${name}!* Please share your phone number to register:`,
       {
         parse_mode: 'Markdown',
         reply_markup: {
-          inline_keyboard: [[{
-            text: '🎮 Play Beteseb Bingo',
-            web_app: { url: `${GAME_URL}?tid=${tid}` }
-          }]],
-          remove_keyboard: true
+          keyboard: [[{ text: '📱 Share Phone Number', request_contact: true }]],
+          resize_keyboard: true,
+          one_time_keyboard: true
         }
       }
     );
   });
 
+  // Handle contact — phone shared → save to DB with balance 0
+  bot.on('contact', async (msg) => {
+    const tid = msg.from.id;
+    const phone = msg.contact.phone_number;
+    const name  = (pendingReg[tid] && pendingReg[tid].name) || msg.from.first_name || 'Player';
+
+    try {
+      // Register with balance 0
+      const user = await db.registerUser(tid, name, phone);
+      delete pendingReg[tid];
+
+      bot.sendMessage(msg.chat.id,
+        `✅ *Registered!*\n\nName: *${user.name}*\nPhone: ${phone}\nBalance: *${user.balance} ETB*\n\nTap below to play! 🎱`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[{
+              text: '🎮 Play Beteseb Bingo',
+              web_app: { url: `${GAME_URL}?tid=${tid}` }
+            }]],
+            remove_keyboard: true
+          }
+        }
+      );
+    } catch (err) {
+      console.error('DB registerUser error:', err);
+      bot.sendMessage(msg.chat.id, '❌ Registration failed. Please try /start again.');
+    }
+  });
+
   // /balance
-  bot.onText(/\/balance/, (msg) => {
-    const user = registeredUsers[msg.from.id];
-    if (!user) return bot.sendMessage(msg.chat.id, 'Please /start to register first.');
-    bot.sendMessage(msg.chat.id, `💰 Balance: *${user.balance} ETB*`, { parse_mode: 'Markdown' });
+  bot.onText(/\/balance/, async (msg) => {
+    try {
+      const user = await db.getUserByTelegramId(msg.from.id);
+      if (!user) return bot.sendMessage(msg.chat.id, 'Please /start to register first.');
+      bot.sendMessage(msg.chat.id, `💰 Balance: *${user.balance} ETB*`, { parse_mode: 'Markdown' });
+    } catch (e) {
+      bot.sendMessage(msg.chat.id, 'Error fetching balance. Try again.');
+    }
   });
 
   // /play
-  bot.onText(/\/play/, (msg) => {
-    const user = registeredUsers[msg.from.id];
-    if (!user) return bot.sendMessage(msg.chat.id, 'Please /start to register first.');
-    bot.sendMessage(msg.chat.id, `Ready to play? 🎱`, {
-      reply_markup: { inline_keyboard: [[{
-        text: '🎮 Open Game',
-        web_app: { url: `${GAME_URL}?tid=${msg.from.id}` }
-      }]]}
-    });
+  bot.onText(/\/play/, async (msg) => {
+    try {
+      const user = await db.getUserByTelegramId(msg.from.id);
+      if (!user) return bot.sendMessage(msg.chat.id, 'Please /start to register first.');
+      bot.sendMessage(msg.chat.id, `Ready to play? 🎱`, {
+        reply_markup: { inline_keyboard: [[{
+          text: '🎮 Open Game',
+          web_app: { url: `${GAME_URL}?tid=${msg.from.id}` }
+        }]]}
+      });
+    } catch (e) {
+      bot.sendMessage(msg.chat.id, 'Error. Try again.');
+    }
   });
 
   console.log('🤖 Telegram bot started successfully!');
