@@ -474,7 +474,7 @@ function handle(msg){
     document.getElementById('navAdmin').style.display='flex';
     document.getElementById('navCards').style.display='none';
   }
- const savedRoom = sessionStorage.getItem('bingo_roomId');
+ const savedRoom = localStorage.setItem('bingo_roomId', msg.roomId);
       if(savedRoom){ myRoomId=savedRoom; wsSend({type:'reconnect',roomId:savedRoom,telegramId:telegramId}); }
       else goScreen('screenLobby');
       break;
@@ -484,7 +484,7 @@ function handle(msg){
     case 'joinedRoom':
   myRoomId=msg.roomId; myStakeId=msg.stakeId; myCardId=null;
   markedIndices=new Set([12]); setBalance(msg.balance);
-  sessionStorage.setItem('bingo_roomId', msg.roomId);
+  localStorage.setItem('bingo_roomId', msg.roomId);
   navGo('screenCards','navCards'); break;
 
     case 'cardPoolUpdate':
@@ -523,14 +523,14 @@ function handle(msg){
       renderCard(myCardNumbers); navGo('screenGame','navGame'); break;
 
     case 'reconnectFailed':
-      sessionStorage.removeItem('bingo_roomId'); myRoomId=null; goScreen('screenLobby'); break;
+      localStorage.removeItem('bingo_roomId'); myRoomId=null; goScreen('screenLobby'); break;
 
     case 'numberCalled': onNumberCalled(msg); break;
     case 'claimTooLate': showToast('⏰ Too late! Claim before next number.','warn'); break;
     case 'disqualified': showDisqualified(); break;
     // No broadcast of playerDisqualified to others (server handles it)
 
-   case 'gameOver': sessionStorage.removeItem('bingo_roomId'); showWinnerOverlay(msg); break;
+   case 'gameOver': localStorage.removeItem('bingo_roomId'); showWinnerOverlay(msg); break;
 
     case 'backToCardSelection':
       myRoomId=msg.roomId; myCardId=null; myCardNumbers=[]; markedIndices=new Set([12]);
@@ -541,7 +541,7 @@ function handle(msg){
 
     case 'balanceUpdate': setBalance(msg.balance); break;
 
-    case 'leftRoom': myRoomId=null; myCardId=null; sessionStorage.removeItem('bingo_roomId'); navGo('screenLobby','navHome'); break;
+    case 'leftRoom': myRoomId=null; myCardId=null; localStorage.removeItem('bingo_roomId');; navGo('screenLobby','navHome'); break;
 
     case 'depositSubmitted':
       showWalletMsg('depositMsg', msg.message, 'success');
