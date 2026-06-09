@@ -449,12 +449,9 @@ wss.on('connection',(ws)=>{
   }
   // Try by playerId first, fall back to telegramId for page-reload reconnects
   let ep=room.players.find(p=>p.playerId===client.playerId);
-  if(!ep&&msg.telegramId){
-    const tid=String(msg.telegramId);
-    ep=room.players.find(p=>{
-      const c=Object.values(clients).find(c=>c.playerId===p.playerId);
-      return c&&c.telegramId===tid;
-    });
+if(!ep&&msg.telegramId){
+  const tid=String(msg.telegramId);
+  ep=room.players.find(p=>String(p.telegramId)===tid);
     if(ep){
       // Re-link this new ws/client to the existing player slot
       const oldClient=Object.values(clients).find(c=>c.telegramId===tid&&c.playerId!==client.playerId);
@@ -481,7 +478,7 @@ wss.on('connection',(ws)=>{
           leaveRoom(client);
           const room=getOrCreateRoom(msg.stakeId);
           if(room.status!=='waiting'&&room.status!=='countdown') return send(ws,{type:'error',message:'Game already running.'});
-          room.players.push({playerId:client.playerId,playerName:client.playerName,ws,cardId:null,hasPaid:false,disqualified:false});
+          room.players.push({playerId:client.playerId,playerName:client.playerName,telegramId:client.telegramId,ws,cardId:null,hasPaid:false,disqualified:false});
           client.roomId=room.roomId;
           send(ws,{type:'joinedRoom',roomId:room.roomId,stakeId:room.stakeId,balance:client.balance,status:room.status});
           broadcastCardPool(room); broadcastLobby();
