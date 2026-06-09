@@ -195,7 +195,7 @@ if (process.env.DATABASE_URL) {
 }
 
 // ─── CONFIG ──────────────────────────────────────────────────
-const LOBBY_WAIT_MS    = 60000;
+const LOBBY_WAIT_MS    = 30000;
 const CALL_INTERVAL_MS = 5000;
 const CLAIM_WINDOW_MS  = 4800;
 const TOTAL_CARDS      = 400;
