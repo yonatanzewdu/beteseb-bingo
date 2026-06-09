@@ -78,7 +78,7 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 .bingo-cell{display:flex;align-items:center;justify-content:center;height:48px;background:#fff;font-size:15px;font-weight:700;color:#1a0a2e;border-radius:6px;cursor:pointer;user-select:none;transition:background .1s,color .1s,transform .1s}
 .bingo-cell:active{transform:scale(.93)}
 .bingo-cell.marked{background:var(--purple)!important;color:#fff!important}
-
+.bingo-cell.called-not-marked{background:#fff8dc!important;color:#8b6914!important}
 .bingo-cell.free{background:var(--purple)!important;color:#fff!important;cursor:default}
 .bingo-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:#271447;border:1px solid #3d226b;color:var(--gray);font-family:'Orbitron',sans-serif;font-size:17px;font-weight:900;padding:14px;border-radius:12px;cursor:pointer;margin-top:14px;transition:all .2s}
 .bingo-btn.ready{animation:flashPulse .7s infinite alternate;background:var(--green)!important;color:#fff!important;border-color:#fff!important;box-shadow:0 0 22px var(--green)}
@@ -437,8 +437,9 @@ function connect(){
   const proto=location.protocol==='https:'?'wss://':'ws://';
   ws=new WebSocket(proto+location.host);
   ws.onopen=()=>{
-  document.getElementById('connDot').classList.add('on');
-};
+    document.getElementById('connDot').classList.add('on');
+    if(myRoomId) wsSend({type:'reconnect',roomId:myRoomId});
+  };
   ws.onclose=()=>{document.getElementById('connDot').classList.remove('on');setTimeout(connect,3000);};
   ws.onerror=()=>{};
   ws.onmessage=e=>{try{handle(JSON.parse(e.data));}catch(err){console.error(err);}};
@@ -462,29 +463,27 @@ function handle(msg){
       }
       break;
 
-  case 'authSuccess':
-  myName=msg.playerName||'Player';
-  setBalance(msg.balance||0);
-  isAdmin=msg.isAdmin||false;
-  adminToken = msg.adminToken || '';
-  document.getElementById('welcomeName').innerText=myName||'Player';
-  document.getElementById('welcomeStatus').innerText=msg.isRegistered?'Welcome back! 👋':'Registered!';
-  if(isAdmin){
-    document.getElementById('navAdmin').style.display='flex';
-    document.getElementById('navCards').style.display='none';
-  }
- cconst savedRoom = localStorage.getItem('bingo_roomId');
-      if(savedRoom){ myRoomId=savedRoom; wsSend({type:'reconnect',roomId:savedRoom,telegramId:telegramId}); }
-      else goScreen('screenLobby');
+    case 'authSuccess':
+      myName=msg.playerName||'Player';
+      setBalance(msg.balance||0);
+      isAdmin=msg.isAdmin||false;
+      adminToken=telegramId||'';
+      document.getElementById('welcomeName').innerText=myName||'Player';
+      document.getElementById('welcomeStatus').innerText=msg.isRegistered?'Welcome back! 👋':'Registered!';
+      // Show/hide admin nav
+      if(isAdmin){
+        document.getElementById('navAdmin').style.display='flex';
+        document.getElementById('navCards').style.display='none';
+      }
+      goScreen('screenLobby');
       break;
 
     case 'lobbyUpdate': renderStakes(msg.stakes); break;
 
     case 'joinedRoom':
-  myRoomId=msg.roomId; myStakeId=msg.stakeId; myCardId=null;
-  markedIndices=new Set([12]); setBalance(msg.balance);
-  localStorage.setItem('bingo_roomId', msg.roomId);
-  navGo('screenCards','navCards'); break;
+      myRoomId=msg.roomId; myStakeId=msg.stakeId; myCardId=null;
+      markedIndices=new Set([12]); setBalance(msg.balance);
+      navGo('screenCards','navCards'); break;
 
     case 'cardPoolUpdate':
       cardPool=msg.pool; renderCardPool(msg.pool); break;
@@ -521,15 +520,12 @@ function handle(msg){
       msg.calledNumbers.forEach(n=>{const el=document.getElementById('tb'+n);if(el)el.className='t-ball '+colClass(n);});
       renderCard(myCardNumbers); navGo('screenGame','navGame'); break;
 
-    case 'reconnectFailed':
-      localStorage.removeItem('bingo_roomId'); myRoomId=null; goScreen('screenLobby'); break;
-
     case 'numberCalled': onNumberCalled(msg); break;
     case 'claimTooLate': showToast('⏰ Too late! Claim before next number.','warn'); break;
     case 'disqualified': showDisqualified(); break;
     // No broadcast of playerDisqualified to others (server handles it)
 
-   case 'gameOver': localStorage.removeItem('bingo_roomId'); showWinnerOverlay(msg); break;
+    case 'gameOver': showWinnerOverlay(msg); break;
 
     case 'backToCardSelection':
       myRoomId=msg.roomId; myCardId=null; myCardNumbers=[]; markedIndices=new Set([12]);
@@ -540,7 +536,7 @@ function handle(msg){
 
     case 'balanceUpdate': setBalance(msg.balance); break;
 
-    case 'leftRoom': myRoomId=null; myCardId=null; localStorage.removeItem('bingo_roomId');; navGo('screenLobby','navHome'); break;
+    case 'leftRoom': myRoomId=null; myCardId=null; navGo('screenLobby','navHome'); break;
 
     case 'depositSubmitted':
       showWalletMsg('depositMsg', msg.message, 'success');
@@ -842,7 +838,8 @@ function refreshCardCells(){
     const cell=document.getElementById('cell'+i); if(!cell) return;
     const tb=document.getElementById('tb'+n); const isCalled=tb&&tb.className.includes(' c');
     if(markedIndices.has(i)){cell.classList.add('marked');cell.classList.remove('called-not-marked');}
-else{cell.classList.remove('marked','called-not-marked');}
+    else if(isCalled){cell.classList.add('called-not-marked');}
+    else{cell.classList.remove('marked','called-not-marked');}
   });
   const btn=document.getElementById('bingoBtn');
   if(btn&&!btn.classList.contains('locked')&&markedIndices.size>=5) btn.classList.add('ready');
