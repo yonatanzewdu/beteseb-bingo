@@ -474,10 +474,10 @@ function handle(msg){
     document.getElementById('navAdmin').style.display='flex';
     document.getElementById('navCards').style.display='none';
   }
-  const savedRoom=sessionStorage.getItem('bingo_roomId');
-  if(savedRoom){ myRoomId=savedRoom; wsSend({type:'reconnect',roomId:savedRoom,telegramId:telegramId}); }
-  else goScreen('screenLobby');
-  break;
+ const savedRoom = sessionStorage.getItem('bingo_roomId');
+      if(savedRoom){ myRoomId=savedRoom; wsSend({type:'reconnect',roomId:savedRoom,telegramId:telegramId}); }
+      else goScreen('screenLobby');
+      break;
 
     case 'lobbyUpdate': renderStakes(msg.stakes); break;
 
