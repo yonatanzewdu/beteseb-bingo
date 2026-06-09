@@ -463,27 +463,29 @@ function handle(msg){
       }
       break;
 
-    case 'authSuccess':
-      myName=msg.playerName||'Player';
-      setBalance(msg.balance||0);
-      isAdmin=msg.isAdmin||false;
-      adminToken = telegramId || '';
-      document.getElementById('welcomeName').innerText=myName||'Player';
-      document.getElementById('welcomeStatus').innerText=msg.isRegistered?'Welcome back! 👋':'Registered!';
-      // Show/hide admin nav
-      if(isAdmin){
-        document.getElementById('navAdmin').style.display='flex';
-        document.getElementById('navCards').style.display='none';
-      }
-      goScreen('screenLobby');
-      break;
+  case 'authSuccess':
+  myName=msg.playerName||'Player';
+  setBalance(msg.balance||0);
+  isAdmin=msg.isAdmin||false;
+  adminToken=msg.adminToken||'';
+  document.getElementById('welcomeName').innerText=myName||'Player';
+  document.getElementById('welcomeStatus').innerText=msg.isRegistered?'Welcome back! 👋':'Registered!';
+  if(isAdmin){
+    document.getElementById('navAdmin').style.display='flex';
+    document.getElementById('navCards').style.display='none';
+  }
+  const savedRoom=sessionStorage.getItem('bingo_roomId');
+  if(savedRoom){ myRoomId=savedRoom; wsSend({type:'reconnect',roomId:savedRoom,telegramId:telegramId}); }
+  else goScreen('screenLobby');
+  break;
 
     case 'lobbyUpdate': renderStakes(msg.stakes); break;
 
     case 'joinedRoom':
-      myRoomId=msg.roomId; myStakeId=msg.stakeId; myCardId=null;
-      markedIndices=new Set([12]); setBalance(msg.balance);
-      navGo('screenCards','navCards'); break;
+  myRoomId=msg.roomId; myStakeId=msg.stakeId; myCardId=null;
+  markedIndices=new Set([12]); setBalance(msg.balance);
+  sessionStorage.setItem('bingo_roomId', msg.roomId);
+  navGo('screenCards','navCards'); break;
 
     case 'cardPoolUpdate':
       cardPool=msg.pool; renderCardPool(msg.pool); break;
@@ -520,12 +522,15 @@ function handle(msg){
       msg.calledNumbers.forEach(n=>{const el=document.getElementById('tb'+n);if(el)el.className='t-ball '+colClass(n);});
       renderCard(myCardNumbers); navGo('screenGame','navGame'); break;
 
+    case 'reconnectFailed':
+      sessionStorage.removeItem('bingo_roomId'); myRoomId=null; goScreen('screenLobby'); break;
+
     case 'numberCalled': onNumberCalled(msg); break;
     case 'claimTooLate': showToast('⏰ Too late! Claim before next number.','warn'); break;
     case 'disqualified': showDisqualified(); break;
     // No broadcast of playerDisqualified to others (server handles it)
 
-    case 'gameOver': showWinnerOverlay(msg); break;
+   case 'gameOver': sessionStorage.removeItem('bingo_roomId'); showWinnerOverlay(msg); break;
 
     case 'backToCardSelection':
       myRoomId=msg.roomId; myCardId=null; myCardNumbers=[]; markedIndices=new Set([12]);
@@ -536,7 +541,7 @@ function handle(msg){
 
     case 'balanceUpdate': setBalance(msg.balance); break;
 
-    case 'leftRoom': myRoomId=null; myCardId=null; navGo('screenLobby','navHome'); break;
+    case 'leftRoom': myRoomId=null; myCardId=null; sessionStorage.removeItem('bingo_roomId'); navGo('screenLobby','navHome'); break;
 
     case 'depositSubmitted':
       showWalletMsg('depositMsg', msg.message, 'success');
