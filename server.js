@@ -431,7 +431,7 @@ wss.on('connection',(ws)=>{
           const user=await loadUser(tid);
           if(user){
             client.telegramId=tid; client.playerName=user.name; client.balance=user.balance; client.isAdmin=user.isAdmin||isAdminPhone(user.phone);
-            send(ws, { type:'authSuccess', ..., adminToken: client.isAdmin ? ADMIN_PHONE : undefined });
+          send(ws,{type:'authSuccess',playerName:user.name,balance:user.balance,isRegistered:true,isAdmin:client.isAdmin,adminToken:client.isAdmin?ADMIN_PHONE:undefined});
           } else {
             client.telegramId=tid;
             send(ws,{type:'authSuccess',playerName:'',balance:0,isRegistered:false,isAdmin:false});
