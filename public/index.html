@@ -437,9 +437,8 @@ function connect(){
   const proto=location.protocol==='https:'?'wss://':'ws://';
   ws=new WebSocket(proto+location.host);
   ws.onopen=()=>{
-    document.getElementById('connDot').classList.add('on');
-    if(myRoomId) wsSend({type:'reconnect',roomId:myRoomId});
-  };
+  document.getElementById('connDot').classList.add('on');
+};
   ws.onclose=()=>{document.getElementById('connDot').classList.remove('on');setTimeout(connect,3000);};
   ws.onerror=()=>{};
   ws.onmessage=e=>{try{handle(JSON.parse(e.data));}catch(err){console.error(err);}};
@@ -474,7 +473,7 @@ function handle(msg){
     document.getElementById('navAdmin').style.display='flex';
     document.getElementById('navCards').style.display='none';
   }
- const savedRoom = localStorage.getItem('bingo_roomId', msg.roomId);
+ cconst savedRoom = localStorage.getItem('bingo_roomId');
       if(savedRoom){ myRoomId=savedRoom; wsSend({type:'reconnect',roomId:savedRoom,telegramId:telegramId}); }
       else goScreen('screenLobby');
       break;
