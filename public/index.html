@@ -102,7 +102,6 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 .wallet-section.active{display:block}
 .telebirr-info{background:var(--card);border:1px solid #4a2d7a;border-radius:12px;padding:14px;margin-bottom:16px;text-align:center}
 .telebirr-logo{display:flex;justify-content:center;align-items:center;margin-bottom:8px}
-.telebirr-logo img{height:42px;width:auto;border-radius:8px;object-fit:contain}
 .telebirr-label{font-size:11px;color:var(--gray);margin-bottom:3px}
 .telebirr-number{font-size:18px;font-weight:700;color:var(--gold);letter-spacing:1px}
 .telebirr-name{font-size:12px;color:var(--gray);margin-top:2px}
@@ -203,13 +202,11 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
   <div class="balance-pill" id="balanceEl" onclick="goToWallet()">ETB 0.00</div>
 </div>
 
-<!-- LOADING -->
 <div id="screenLoading" class="screen active">
   <div class="loading-spinner"></div>
   <div class="loading-text" id="loadingText">Connecting...</div>
 </div>
 
-<!-- LOBBY -->
 <div id="screenLobby" class="screen">
   <div class="welcome-banner">
     <div class="welcome-name">Welcome, <span id="welcomeName">Player</span>!</div>
@@ -219,7 +216,6 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
   <div id="stakesGrid" class="stakes-grid"></div>
 </div>
 
-<!-- CARD SELECTION -->
 <div id="screenCards" class="screen">
   <div class="cd-header">
     <h2 class="screen-title" style="margin:0">CHOOSE YOUR CARD</h2>
@@ -230,7 +226,6 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
   <button class="leave-btn" onclick="leaveRoom()">← Leave Room</button>
 </div>
 
-<!-- GAME -->
 <div id="screenGame" class="screen">
   <div class="game-stats-row">
     <div class="stat-box"><div class="lbl">Prize Pot</div><div id="potVal" class="val">0</div></div>
@@ -257,9 +252,6 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
   <div class="tracker-wrap"><div id="trackerGrid" class="tracker-grid"></div></div>
 </div>
 
-<!-- ══════════════════════════════════════════════ -->
-<!-- WALLET SCREEN                                  -->
-<!-- ══════════════════════════════════════════════ -->
 <div id="screenWallet" class="screen">
   <h2 class="screen-title">💰 MY WALLET</h2>
 
@@ -268,17 +260,20 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
     <div class="wallet-bal-amount" id="walletBalAmt">ETB 0.00</div>
   </div>
 
-  <!-- Tabs -->
   <div class="wallet-tabs">
     <div class="wallet-tab active" onclick="switchWalletTab('deposit')">⬇ Deposit</div>
     <div class="wallet-tab" onclick="switchWalletTab('withdraw')">⬆ Withdraw</div>
   </div>
 
-  <!-- DEPOSIT SECTION -->
   <div id="walletDeposit" class="wallet-section active">
     <div class="telebirr-info">
       <div class="telebirr-logo">
-        <img src="telebirr-logo.png" alt="Telebirr Logo">
+        <svg width="150" height="42" viewBox="0 0 150 42" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius: 8px;">
+          <rect width="150" height="42" rx="8" fill="#1e3a8a"/>
+          <circle cx="24" cy="21" r="12" fill="#fff"/>
+          <path d="M23 14V22.5C23 24.2 23.8 25 25.8 25H27.8V27H25.8C23.2 27 21.2 25.8 20.4 23.2V15.8H18V14H20.4V11.5H23V14H26.5V14H23Z" fill="#1e3a8a"/>
+          <text x="44" y="26" fill="#fff" font-family="'Inter', sans-serif" font-weight="700" font-size="16" letter-spacing="0.5">telebirr</text>
+        </svg>
       </div>
       <div class="telebirr-label">Send to this Telebirr number</div>
       <div class="telebirr-number" id="telebirrNumber">0934255415</div>
@@ -297,7 +292,6 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
     <div id="depositMsg" style="display:none" class="status-msg"></div>
   </div>
 
-  <!-- WITHDRAW SECTION -->
   <div id="walletWithdraw" class="wallet-section">
     <div style="background:var(--card);border:1px solid #4a2d7a;border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px;color:var(--gray);line-height:1.7">
       ℹ️ Withdrawals are processed manually. Funds will be sent to your Telebirr number on file.<br>
@@ -312,16 +306,12 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════ -->
-<!-- ADMIN SCREEN                                   -->
-<!-- ══════════════════════════════════════════════ -->
 <div id="screenAdmin" class="screen">
   <div class="admin-header">
     <h2 class="screen-title" style="margin:0">⚙️ ADMIN PANEL</h2>
     <span class="admin-badge">ADMIN</span>
   </div>
 
-  <!-- Admin Tabs -->
   <div class="admin-tabs">
     <div class="admin-tab active" onclick="switchAdminTab('deposits')">
       Deposits <span class="badge-count" id="depositCount">0</span>
@@ -332,19 +322,16 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
     <div class="admin-tab" onclick="switchAdminTab('search')">Search</div>
   </div>
 
-  <!-- DEPOSITS TAB -->
   <div id="adminDeposits" class="admin-section active">
     <button class="refresh-btn" onclick="adminLoadDeposits()">🔄 Refresh</button>
     <div id="depositsList"></div>
   </div>
 
-  <!-- WITHDRAWALS TAB -->
   <div id="adminWithdrawals" class="admin-section">
     <button class="refresh-btn" onclick="adminLoadWithdrawals()">🔄 Refresh</button>
     <div id="withdrawalsList"></div>
   </div>
 
-  <!-- SEARCH TAB -->
   <div id="adminSearch" class="admin-section">
     <div class="search-row">
       <input class="search-input" type="text" id="searchPhone" placeholder="Search by phone number...">
@@ -354,7 +341,6 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
   </div>
 </div>
 
-<!-- WINNER OVERLAY -->
 <div class="winner-overlay" id="winnerOverlay">
   <div class="confetti-row">🎊🎉🎊🎉🎊</div>
   <div class="winner-trophy">🏆</div>
@@ -365,14 +351,12 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
   <div class="winner-msg" id="winnerMsg"></div>
 </div>
 
-<!-- DISQUALIFIED OVERLAY -->
 <div class="disq-overlay" id="disqOverlay">
   <div class="disq-icon">🚫</div>
   <div class="disq-title">DISQUALIFIED</div>
   <div class="disq-msg">You claimed BINGO without a valid winning pattern. You are disqualified from this round.</div>
 </div>
 
-<!-- BOTTOM NAV -->
 <div class="bottom-nav">
   <div class="nav-item active" id="navHome" onclick="navGo('screenLobby','navHome')">
     <span class="nav-icon">🏠</span><span>HOME</span>
@@ -391,7 +375,6 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
     <span class="nav-icon">⚙️</span><span>ADMIN</span>
     <span class="nav-dot show" id="adminDot" style="display:none"></span>
   </div>
-  <!-- Non-admin: show cards tab instead -->
   <div class="nav-item" id="navCards" onclick="navGo('screenCards','navCards')">
     <span class="nav-icon">🃏</span><span>CARDS</span>
   </div>
@@ -526,7 +509,6 @@ function handle(msg){
     case 'numberCalled': onNumberCalled(msg); break;
     case 'claimTooLate': showToast('⏰ Too late! Claim before next number.','warn'); break;
     case 'disqualified': showDisqualified(); break;
-    // No broadcast of playerDisqualified to others (server handles it)
 
     case 'gameOver': showWinnerOverlay(msg); break;
 
@@ -774,6 +756,7 @@ function startClaimBar(ms){
   if(ms<2000) bar.className='claim-bar urgent';
   claimBarAnim=setTimeout(()=>{claimWindowOpen=false;setBingoBtn('locked');},ms);
 }
+function cf_safe_func(){}
 function setBingoBtn(state){
   const btn=document.getElementById('bingoBtn');
   btn.className='bingo-btn';
