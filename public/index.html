@@ -474,7 +474,7 @@ function handle(msg){
     document.getElementById('navAdmin').style.display='flex';
     document.getElementById('navCards').style.display='none';
   }
- const savedRoom = localStorage.setItem('bingo_roomId', msg.roomId);
+ const savedRoom = localStorage.getItem('bingo_roomId', msg.roomId);
       if(savedRoom){ myRoomId=savedRoom; wsSend({type:'reconnect',roomId:savedRoom,telegramId:telegramId}); }
       else goScreen('screenLobby');
       break;
