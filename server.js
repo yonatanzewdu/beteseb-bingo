@@ -442,14 +442,37 @@ wss.on('connection',(ws)=>{
           if(msg.name&&msg.name.trim()){client.playerName=msg.name.trim().substring(0,20);send(ws,{type:'nameSet',playerName:client.playerName});}
           break;
         }
-        case 'reconnect':{
-          const room=rooms[msg.roomId];
-          if(!room||room.status!=='playing') break;
-          const ep=room.players.find(p=>p.playerId===client.playerId);
-          if(ep){ep.ws=ws;client.roomId=msg.roomId;const card=getCard(ep.cardId);
-            send(ws,{type:'reconnected',roomId:msg.roomId,stakeId:room.stakeId,cardId:ep.cardId,cardNumbers:card?card.numbers:[],calledNumbers:room.calledNumbers,pot:room.pot,playerCount:room.players.length});}
-          break;
-        }
+      case 'reconnect':{
+  const room=rooms[msg.roomId];
+  if(!room||room.status!=='playing'){
+    send(ws,{type:'reconnectFailed'}); break;
+  }
+  // Try by playerId first, fall back to telegramId for page-reload reconnects
+  let ep=room.players.find(p=>p.playerId===client.playerId);
+  if(!ep&&msg.telegramId){
+    const tid=String(msg.telegramId);
+    ep=room.players.find(p=>{
+      const c=Object.values(clients).find(c=>c.playerId===p.playerId);
+      return c&&c.telegramId===tid;
+    });
+    if(ep){
+      // Re-link this new ws/client to the existing player slot
+      const oldClient=Object.values(clients).find(c=>c.telegramId===tid&&c.playerId!==client.playerId);
+      if(oldClient) delete clients[oldClient.playerId];
+      ep.playerId=client.playerId;
+      client.telegramId=String(msg.telegramId);
+    }
+  }
+  if(ep){
+    ep.ws=ws; client.roomId=msg.roomId;
+    const card=getCard(ep.cardId);
+    send(ws,{type:'reconnected',roomId:msg.roomId,stakeId:room.stakeId,cardId:ep.cardId,
+      cardNumbers:card?card.numbers:[],calledNumbers:room.calledNumbers,pot:room.pot,playerCount:room.players.length});
+  } else {
+    send(ws,{type:'reconnectFailed'});
+  }
+  break;
+}
         case 'joinRoom':{
           const sc=STAKES.find(s=>s.id===msg.stakeId);
           if(!sc) return send(ws,{type:'error',message:'Invalid stake.'});
