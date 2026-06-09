@@ -467,7 +467,7 @@ function handle(msg){
   myName=msg.playerName||'Player';
   setBalance(msg.balance||0);
   isAdmin=msg.isAdmin||false;
-  adminToken=msg.adminToken||'';
+  adminToken = msg.adminToken || '';
   document.getElementById('welcomeName').innerText=myName||'Player';
   document.getElementById('welcomeStatus').innerText=msg.isRegistered?'Welcome back! 👋':'Registered!';
   if(isAdmin){
