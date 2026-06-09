@@ -101,7 +101,8 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 .wallet-section{display:none}
 .wallet-section.active{display:block}
 .telebirr-info{background:var(--card);border:1px solid #4a2d7a;border-radius:12px;padding:14px;margin-bottom:16px;text-align:center}
-.telebirr-logo{font-size:28px;margin-bottom:6px}
+.telebirr-logo{display:flex;justify-content:center;align-items:center;margin-bottom:8px}
+.telebirr-logo img{height:42px;width:auto;border-radius:8px;object-fit:contain}
 .telebirr-label{font-size:11px;color:var(--gray);margin-bottom:3px}
 .telebirr-number{font-size:18px;font-weight:700;color:var(--gold);letter-spacing:1px}
 .telebirr-name{font-size:12px;color:var(--gray);margin-top:2px}
@@ -276,7 +277,9 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
   <!-- DEPOSIT SECTION -->
   <div id="walletDeposit" class="wallet-section active">
     <div class="telebirr-info">
-      <div class="telebirr-logo">📱</div>
+      <div class="telebirr-logo">
+        <img src="telebirr-logo.png" alt="Telebirr Logo">
+      </div>
       <div class="telebirr-label">Send to this Telebirr number</div>
       <div class="telebirr-number" id="telebirrNumber">0934255415</div>
       <div class="telebirr-name">Beteseb Bingo</div>
