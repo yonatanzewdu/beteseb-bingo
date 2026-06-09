@@ -23,6 +23,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
 const ADMIN_PHONE = '251934255415';
+function isAdminPhone(phone) {
+  if (!phone) return false;
+  const normalized = String(phone).replace(/^\+/, '');
+  return normalized === ADMIN_PHONE;
+}
 const HOUSE_CUT   = 0.20; // 20% house, 80% winner
 
 // ─── DATABASE ─────────────────────────────────────────────────
@@ -234,7 +239,7 @@ const clients={}, rooms={}, userCache={};
 
 // ─── USER HELPERS ────────────────────────────────────────────
 async function loadUser(tid) {
-  if(db){try{const u=await db.getUser(tid);if(u){userCache[tid]={name:u.name,phone:u.phone,balance:parseFloat(u.balance),isAdmin:u.phone===ADMIN_PHONE};return userCache[tid];}}catch(e){}}
+  if(db){try{const u=await db.getUser(tid);if(u){userCache[tid]={name:u.name,phone:u.phone,balance:parseFloat(u.balance),isAdmin:isAdminPhone(u.phone)};return userCache[tid];}}catch(e){}}
   return userCache[tid]||null;
 }
 async function saveBalance(tid, bal) {
@@ -425,7 +430,7 @@ wss.on('connection',(ws)=>{
           const tid=String(msg.telegramId);
           const user=await loadUser(tid);
           if(user){
-            client.telegramId=tid; client.playerName=user.name; client.balance=user.balance; client.isAdmin=user.isAdmin||user.phone===ADMIN_PHONE;
+            client.telegramId=tid; client.playerName=user.name; client.balance=user.balance; client.isAdmin=user.isAdmin||isAdminPhone(user.phone);
             send(ws,{type:'authSuccess',playerName:user.name,balance:user.balance,isRegistered:true,isAdmin:client.isAdmin});
           } else {
             client.telegramId=tid;
@@ -502,12 +507,13 @@ wss.on('connection',(ws)=>{
           const{amount,txRef}=msg;
           if(!amount||amount<10) return send(ws,{type:'error',message:'Minimum deposit is 10 ETB.'});
           if(!txRef||!txRef.trim()) return send(ws,{type:'error',message:'Transaction reference required.'});
-          if(!client.telegramId) return send(ws,{type:'error',message:'Please register first.'});
+          if(!client.telegramId) return send(ws,{type:'error',message:'Please register first via the Telegram bot (/start).'});
           if(db){
             try{
               const id=await db.createDeposit(client.telegramId,amount,txRef.trim());
+              if(!id) return send(ws,{type:'error',message:'Account not found in database. Please send /start to the bot again.'});
               send(ws,{type:'depositSubmitted',message:'Deposit request submitted! Waiting for admin approval.'});
-            }catch(e){send(ws,{type:'error',message:'Failed to submit deposit.'});}
+            }catch(e){console.error('Deposit error:',e.message); send(ws,{type:'error',message:'Deposit failed: '+e.message});}
           } else {
             // Memory mode: auto-approve
             client.balance+=amount;
@@ -552,9 +558,13 @@ wss.on('connection',(ws)=>{
 });
 
 // ─── ADMIN REST API ───────────────────────────────────────────
-// Simple token check — admin sets ?token=ADMIN_PHONE in URL
+// Admin auth — accepts phone number OR telegram ID of the admin
 function adminAuth(req,res,next){
-  if(req.headers['x-admin-token']===ADMIN_PHONE||req.query.token===ADMIN_PHONE) return next();
+  const tok=String(req.headers['x-admin-token']||req.query.token||'');
+  if(isAdminPhone(tok)) return next();
+  // Frontend sends telegramId as token — check if that user isAdmin
+  const cl=Object.values(clients).find(c=>c.telegramId===tok);
+  if(cl&&cl.isAdmin) return next();
   res.status(403).json({error:'Forbidden'});
 }
 
@@ -661,11 +671,11 @@ function startTelegramBot(){
   bot.on('contact',async msg=>{
     const tid=msg.from.id, p=pending[tid];
     if(!p) return;
-    const phone=msg.contact.phone_number, name=p.name||msg.from.first_name||'Player';
+    const phone=(msg.contact.phone_number||'').replace(/^\+/,''), name=p.name||msg.from.first_name||'Player';
     delete pending[tid];
     let balance=0;
-    if(db){try{const u=await db.createUser(String(tid),name,phone);balance=parseFloat(u.balance);userCache[String(tid)]={name,phone,balance,isAdmin:phone===ADMIN_PHONE};}catch(e){console.error(e);}}
-    else{userCache[String(tid)]={name,phone,balance:0,isAdmin:phone===ADMIN_PHONE};}
+    if(db){try{const u=await db.createUser(String(tid),name,phone);balance=parseFloat(u.balance);userCache[String(tid)]={name,phone,balance,isAdmin:isAdminPhone(phone)};}catch(e){console.error('createUser error:',e.message);}}
+    else{userCache[String(tid)]={name,phone,balance:0,isAdmin:isAdminPhone(phone)};}
     bot.sendMessage(msg.chat.id,
       `✅ *Registered!*\nName: *${name}*\nPhone: ${phone}\nBalance: *${balance} ETB*\n\nDeposit ETB to start playing!`,
       {parse_mode:'Markdown',reply_markup:{inline_keyboard:[[{text:'🎮 Play Beteseb Bingo',web_app:{url:`${GAME_URL}?tid=${tid}`}}]],remove_keyboard:true}});
