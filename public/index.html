@@ -193,13 +193,21 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 .nav-center{width:54px;height:54px;background:linear-gradient(145deg,#ffcc00,#d4aa00);border-radius:50%;border:3px solid var(--bg);transform:translateY(-12px);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,.4);cursor:pointer}
 .nav-dot{position:absolute;top:2px;right:6px;width:8px;height:8px;background:var(--red);border-radius:50%;display:none}
 .nav-dot.show{display:block}
+
+/* SOUND BUTTON */
+.sound-btn{background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.25);color:#fff;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:background .2s,border-color .2s;flex-shrink:0}
+.sound-btn:hover{background:rgba(255,255,255,.2)}
+.sound-btn.muted{background:rgba(239,68,68,.2);border-color:var(--red);color:var(--red)}
 </style>
 </head>
 <body>
 
 <div class="navbar">
   <div class="brand">BETESEB BINGO <span class="dot" id="connDot"></span></div>
-  <div class="balance-pill" id="balanceEl" onclick="goToWallet()">ETB 0.00</div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="sound-btn" id="soundBtn" onclick="toggleSound()" title="Toggle sound">🔊</button>
+    <div class="balance-pill" id="balanceEl" onclick="goToWallet()">ETB 0.00</div>
+  </div>
 </div>
 
 <div id="screenLoading" class="screen active">
@@ -744,6 +752,10 @@ function onNumberCalled(msg){
   const tb=document.getElementById('tb'+n);
   if(tb) tb.className='t-ball '+cfg.cls+' latest';
   prevLastCalled=n;
+
+  // 🔊 Play the audio for this number
+  playBallAudio(n);
+
   claimWindowOpen=true; setBingoBtn('ready'); startClaimBar(msg.claimWindowMs||4800);
   refreshCardCells();
 }
@@ -891,6 +903,72 @@ function showToast(msg,type=''){
 }
 
 function leaveRoom(){wsSend({type:'leaveRoom'});myRoomId=null;myCardId=null;}
+
+// ─── AUDIO SYSTEM ────────────────────────────────────────────
+let soundEnabled = true;
+let audioCache = {};   // number -> Audio object (preloaded)
+let audioUnlocked = false;
+
+// Map number to B/I/N/G/O letter
+function ballLetter(n){
+  if(n<=15) return 'b';
+  if(n<=30) return 'i';
+  if(n<=45) return 'n';
+  if(n<=60) return 'g';
+  return 'o';
+}
+
+// Preload all 75 audio files in background after user first interacts
+function preloadAudio(){
+  for(let i=1;i<=75;i++){
+    const letter=ballLetter(i);
+    const path=`/audio/${letter}${i}.mp3`;
+    const a=new Audio(path);
+    a.preload='auto';
+    audioCache[i]=a;
+  }
+}
+
+// Unlock Web Audio on first user touch (required by mobile browsers)
+function unlockAudio(){
+  if(audioUnlocked) return;
+  audioUnlocked=true;
+  // Play and immediately pause a silent buffer to unlock
+  const a=new Audio();
+  a.play().catch(()=>{});
+  preloadAudio();
+  document.removeEventListener('click', unlockAudio);
+  document.removeEventListener('touchend', unlockAudio);
+}
+document.addEventListener('click', unlockAudio, {once:true});
+document.addEventListener('touchend', unlockAudio, {once:true});
+
+function playBallAudio(n){
+  if(!soundEnabled) return;
+  try{
+    // Use cached audio if available, otherwise create new
+    let a = audioCache[n];
+    if(a){
+      a.currentTime=0;
+      a.play().catch(()=>{});
+    } else {
+      const letter=ballLetter(n);
+      const fresh=new Audio(`/audio/${letter}${n}.mp3`);
+      fresh.play().catch(()=>{});
+      audioCache[n]=fresh;
+    }
+  }catch(e){}
+}
+
+function toggleSound(){
+  soundEnabled=!soundEnabled;
+  const btn=document.getElementById('soundBtn');
+  btn.textContent=soundEnabled?'🔊':'🔇';
+  btn.classList.toggle('muted',!soundEnabled);
+  // Unlock audio if not done yet
+  if(soundEnabled&&!audioUnlocked) unlockAudio();
+  showToast(soundEnabled?'🔊 Sound on':'🔇 Sound off');
+}
 
 // ─── INIT ────────────────────────────────────────────────────
 buildTracker();
