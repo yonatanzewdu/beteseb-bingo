@@ -296,7 +296,7 @@ async function startGame(room){
     }
   }
   room.status='playing';
-  room.pot=Math.floor(room.players.filter(p=>p.hasPaid).length*room.stake*(1-HOUSE_CUT));
+  room.pot=room.players.filter(p=>p.hasPaid).length*room.stake;
   room.calledNumbers=[]; room.availableNumbers=Array.from({length:75},(_,i)=>i+1);
   room.claimedThisRound=[]; room.claimWindowOpen=false;
   if(db){try{room.dbGameId=await db.saveGame(room.roomId,room.stakeId,room.stake,room.pot);}catch(e){}}
