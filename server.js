@@ -240,7 +240,7 @@ const clients={}, rooms={}, userCache={};
 
 // ─── USER HELPERS ────────────────────────────────────────────
 async function loadUser(tid) {
-  if(db){try{const u=await db.getUser(tid);if(u){userCache[tid]={name:u.name,phone:u.phone,balance:parseFloat(u.balance),isAdmin:isAdminPhone(u.phone)};return userCache[tid];}}catch(e){}}
+  if(db){try{const u=await db.getUser(tid);if(u){userCache[tid] = { name: u.name, phone: u.phone, balance: parseFloat(u.balance), isAdmin: u.is_admin === true };}}catch(e){}}
   return userCache[tid]||null;
 }
 async function saveBalance(tid, bal) {
