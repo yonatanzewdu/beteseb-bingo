@@ -20,6 +20,7 @@ const wss    = new WebSocket.Server({ server });
 const PORT   = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/audio', express.static(path.join(__dirname, 'audio')));
 app.use(express.json());
 
 const ADMIN_PHONE = '251934255415';
