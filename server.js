@@ -284,7 +284,10 @@ function startCountdown(room){
 
 async function startGame(room){
   for(const p of room.players){
-    if(!p.cardId){const f=CARD_POOL.find(c=>!room.takenCardIds.has(c.id));if(f){p.cardId=f.id;room.takenCardIds.add(f.id);}}
+    // FIX 2 & 3: Only deduct stake for players who CHOSE a card.
+    // Players without a card become spectators — no charge, no card assigned.
+    if(!p.cardId) continue; // spectator — skip entirely
+
     if(!p.hasPaid){
       const cl=clients[p.playerId];
       if(cl&&cl.balance>=room.stake){
@@ -292,6 +295,9 @@ async function startGame(room){
         await saveBalance(cl.telegramId,cl.balance);
         if(db&&cl.telegramId){try{await db.logTx(cl.telegramId,'stake',-room.stake,cl.balance,room.roomId);}catch(e){}}
         send(p.ws,{type:'balanceUpdate',balance:cl.balance});
+      } else {
+        // Can't afford — also becomes spectator
+        p.cardId=null; continue;
       }
     }
   }
@@ -300,10 +306,18 @@ async function startGame(room){
   room.calledNumbers=[]; room.availableNumbers=Array.from({length:75},(_,i)=>i+1);
   room.claimedThisRound=[]; room.claimWindowOpen=false;
   if(db){try{room.dbGameId=await db.saveGame(room.roomId,room.stakeId,room.stake,room.pot);}catch(e){}}
+
   room.players.forEach(p=>{
-    const card=getCard(p.cardId);
-    send(p.ws,{type:'yourCard',cardId:p.cardId,cardNumbers:card?card.numbers:[],pot:room.pot,playerCount:room.players.length});
+    if(p.cardId){
+      // Active player — send their card
+      const card=getCard(p.cardId);
+      send(p.ws,{type:'yourCard',cardId:p.cardId,cardNumbers:card?card.numbers:[],pot:room.pot,playerCount:room.players.length,spectator:false});
+    } else {
+      // Spectator — tell them they are watching
+      send(p.ws,{type:'spectating',pot:room.pot,playerCount:room.players.filter(p=>p.hasPaid).length});
+    }
   });
+
   broadcast(room,{type:'gameStart',pot:room.pot,players:room.players.map(p=>({playerId:p.playerId,playerName:p.playerName}))});
   broadcastLobby(); scheduleNextCall(room);
 }
@@ -312,6 +326,9 @@ function scheduleNextCall(room){room.callTimer=setTimeout(()=>callNumber(room),C
 
 function callNumber(room){
   if(room.status!=='playing') return;
+
+  // FIX 1: Evaluate ALL pending claims BEFORE calling next number.
+  // This lets multiple simultaneous winners be detected in the same window.
   if(room.claimedThisRound.length>0){evaluateClaims(room);return;}
   room.claimWindowOpen=false; room.claimedThisRound=[];
   if(room.availableNumbers.length===0){endGame(room,[],null,true);return;}
@@ -326,21 +343,23 @@ function evaluateClaims(room){
   const winners=[], cheaters=[];
   room.claimedThisRound.forEach(claim=>{
     const p=room.players.find(p=>p.playerId===claim.playerId);
-    if(!p||p.disqualified) return;
+    // FIX 3: spectators (no card) cannot claim
+    if(!p||p.disqualified||!p.cardId) return;
     const card=getCard(p.cardId);
     if(!card) return;
     if(checkWin(card.numbers,room.calledNumbers,claim.markedIndices)) winners.push(p);
     else cheaters.push(p);
   });
 
-  // ★ Disqualify silently — only notify the cheater, no broadcast
+  // Disqualify cheaters silently
   cheaters.forEach(p=>{
     p.disqualified=true;
     send(p.ws,{type:'disqualified',message:'🚫 False BINGO claim — you are disqualified!'});
-    // NO broadcast to others
   });
 
   room.claimedThisRound=[]; room.claimWindowOpen=false;
+
+  // FIX 1: ALL winners in the same window share the prize — no first-only logic
   if(winners.length>0) endGame(room,winners,null,false);
   else scheduleNextCall(room);
 }
