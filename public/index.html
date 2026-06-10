@@ -368,6 +368,172 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
   <div class="disq-title">DISQUALIFIED</div>
   <div class="disq-msg">You claimed BINGO without a valid winning pattern. You are disqualified from this round.</div>
 </div>
+  <!-- RULES SCREEN -->
+<div id="screenRules" class="screen">
+  <div style="background:linear-gradient(135deg,#2d1b4e,#1a0a3e);border-radius:16px;padding:20px;text-align:center;margin-bottom:20px;border:1px solid #6d28d9">
+    <div style="font-size:36px;margin-bottom:8px">📋</div>
+    <div style="font-family:'Orbitron',sans-serif;font-size:18px;font-weight:900;color:var(--gold)">የቢንጎ ጨዋታ ሕጎች</div>
+    <div style="font-size:12px;color:var(--gray);margin-top:4px">Beteseb Bingo Rules</div>
+  </div>
+
+  <!-- Section 1: Card Selection -->
+  <div style="background:var(--panel);border:1px solid #3c2463;border-radius:14px;padding:16px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:40px;height:40px;background:var(--purple);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🃏</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:15px;font-weight:900;color:#fff">መጫወቻ ካርድ</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:var(--card);border-radius:10px;padding:13px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:28px;height:28px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0">1</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">Choose Your Card</div>
+            <div style="font-size:12px;color:var(--gold);line-height:1.5">ጨዋታውን ለመጀመር ከሚመጣልን ከ1-400 የመጫወቻ ካርድ ውስጥ አንዱን እንመርጣለን</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:var(--card);border-radius:10px;padding:13px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:28px;height:28px;background:var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0">2</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">Card Status Indicator</div>
+            <div style="font-size:12px;color:var(--gold);line-height:1.5">የመጫወቻ ካርዱ ላይ በቀይ ቀለም የተመረጡ ቁጥሮች የሚያሳዩት መጫወቻ ካርዱ ቦሌ ተጨዋቾ መምረጣን ነው</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:var(--card);border-radius:10px;padding:13px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:28px;height:28px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0">3</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">Card Preview</div>
+            <div style="font-size:12px;color:var(--gold);line-height:1.5">የመጫወቻ ካርድ ስንነካው ከታች ካርድ ቁጥሩ የሚይዘዉን መጫወቻ ካርድ ያሳየናል</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Tips box -->
+    <div style="background:rgba(250,204,21,.08);border:1px solid rgba(250,204,21,.3);border-radius:10px;padding:12px;margin-top:12px">
+      <div style="color:var(--gold);font-weight:700;font-size:13px;margin-bottom:8px">🎯 Card Selection Tips</div>
+      <div style="font-size:12px;color:#fff;line-height:1.8">✅ Choose cards that are not marked in red<br>✅ Preview your card before confirming<br>✅ Select quickly before registration time ends</div>
+    </div>
+  </div>
+
+  <!-- Section 2: Gameplay -->
+  <div style="background:var(--panel);border:1px solid #3c2463;border-radius:14px;padding:16px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:40px;height:40px;background:var(--purple);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">▶️</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:15px;font-weight:900;color:#fff">ጨዋታ</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:var(--card);border-radius:10px;padding:13px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:28px;height:28px;background:var(--purple);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0">1</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">Game Entry</div>
+            <div style="font-size:12px;color:var(--gold);line-height:1.5">ወደ ጨዋታው ስንገባ በመረጥነው የካርድ ቁጥር መሰረት የመጫወቻ ካርድ እናገኛለን</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:var(--card);border-radius:10px;padding:13px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:28px;height:28px;background:var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#000;flex-shrink:0">2</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">Game Timer</div>
+            <div style="font-size:12px;color:var(--gold);line-height:1.5">ከላይ በቀኝ በኩል ጨዋታው ለመጀምር ያለዉን ቀሪ ሴኮንድ መቆጠር ይጀምርልዱ</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:var(--card);border-radius:10px;padding:13px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:28px;height:28px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0">3</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">Number Calling</div>
+            <div style="font-size:12px;color:var(--gold);line-height:1.5">ጨዋታው ሲጀምር የተለያዩ ቁጥሮች ከ1 እስከ 75 መጥራት ይጀምርልዱ</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:var(--card);border-radius:10px;padding:13px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:28px;height:28px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0">📌</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px">Marking Numbers</div>
+            <div style="font-size:12px;color:var(--gold);line-height:1.5">የሚጠራው ቁጥር የጸ መጫወቻ ካርዱ ዉስጥ ካለ የተጠራዉን ቁጥር ክሊክ በማርግ መምረጥ እንቻላለን</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Game mechanics box -->
+    <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:10px;padding:12px;margin-top:12px">
+      <div style="color:var(--green);font-weight:700;font-size:13px;margin-bottom:8px">⚙️ Game Mechanics</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
+        <div><div style="color:#fff;font-weight:600;margin-bottom:2px">Number Range</div><div style="color:var(--gray)">Numbers 1 to 75</div></div>
+        <div><div style="color:#fff;font-weight:600;margin-bottom:2px">Card Layout</div><div style="color:var(--gray)">5×5 grid + FREE center</div></div>
+        <div><div style="color:#fff;font-weight:600;margin-bottom:2px">Marking</div><div style="color:var(--gray)">Tap to mark/unmark</div></div>
+        <div><div style="color:#fff;font-weight:600;margin-bottom:2px">Timer</div><div style="color:var(--gray)">Countdown to start</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3: Winning -->
+  <div style="background:var(--panel);border:1px solid #3c2463;border-radius:14px;padding:16px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:40px;height:40px;background:#d97706;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏆</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:15px;font-weight:900;color:#fff">አሸናፊ</div>
+    </div>
+    <div style="background:rgba(250,204,21,.08);border:1px solid rgba(250,204,21,.3);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="color:var(--gold);font-weight:700;font-size:13px;margin-bottom:6px">✨ Main Winning Rule</div>
+      <div style="font-size:12px;color:var(--gold);line-height:1.7">ቁጥሮቹ ሲጠራ ከመጫወቻ ካርዱችን ላይ አየመረጥን ወደን ወይም ወደታች ወይም ወደሁለቱም አግዳሚ ወይም አርቃን ማእዘናት ከምረጥን ወዲዉን ከታች bingo የሚለዉን በምንካት ማሽኝ እንችላለን</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:var(--card);border-radius:10px;padding:13px;display:flex;align-items:center;gap:12px">
+        <div style="width:36px;height:36px;background:#d97706;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">→</div>
+        <div><div style="font-size:14px;font-weight:700;color:#d97706;margin-bottom:3px">ወደን</div><div style="font-size:12px;color:var(--gray)">ማንኛዉም አግድም ረድፍ ማጠናቀቅ (5 ቁጥሮች በመስመር)</div></div>
+      </div>
+      <div style="background:var(--card);border-radius:10px;padding:13px;display:flex;align-items:center;gap:12px">
+        <div style="width:36px;height:36px;background:#d97706;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">↓</div>
+        <div><div style="font-size:14px;font-weight:700;color:#d97706;margin-bottom:3px">ወደታች</div><div style="font-size:12px;color:var(--gray)">ማንኛዉም ቁጥር ያለ አምድ ማጠናቀቅ (5 ቁጥሮች በመስመር)</div></div>
+      </div>
+      <div style="background:var(--card);border-radius:10px;padding:13px;display:flex;align-items:center;gap:12px">
+        <div style="width:36px;height:36px;background:#d97706;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">↘</div>
+        <div><div style="font-size:14px;font-weight:700;color:#d97706;margin-bottom:3px">አግዳሚ</div><div style="font-size:12px;color:var(--gray)">ማንኛዉም አግዳሚ መስመር ማጠናቀቅ (5 ቁጥሮች በአግዳሚ)</div></div>
+      </div>
+      <div style="background:var(--card);border-radius:10px;padding:13px;display:flex;align-items:center;gap:12px">
+        <div style="width:36px;height:36px;background:#d97706;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">⛶</div>
+        <div><div style="font-size:14px;font-weight:700;color:#d97706;margin-bottom:3px">አራቱን ማእዘናት</div><div style="font-size:12px;color:var(--gray)">የካርዱን አራቱን ማእዘን ቁጥሮች ማምልከት</div></div>
+      </div>
+    </div>
+    <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:10px;padding:12px;margin-top:10px">
+      <div style="color:var(--green);font-weight:700;font-size:13px;margin-bottom:6px">👥 Multiple Winners</div>
+      <div style="font-size:12px;color:var(--gold);line-height:1.6">ሁለት ወይም ከዚያ በላይ ተጫዋቾች እኩል ቢያሸንፉ ደርሻ ለቁጥሯቸው ይካፈላል።</div>
+    </div>
+  </div>
+
+  <!-- Section 4: Penalties -->
+  <div style="background:var(--panel);border:1px solid #3c2463;border-radius:14px;padding:16px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:40px;height:40px;background:var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🚫</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:15px;font-weight:900;color:#fff">ቅጣት</div>
+    </div>
+    <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="color:var(--red);font-weight:700;font-size:13px;margin-bottom:6px">⚠️ False BINGO Penalty</div>
+      <div style="font-size:12px;color:var(--gold);line-height:1.7;margin-bottom:8px">ወደን ወይም ወደታች ወይም ወደሁለቱም አግዳሚ ወይም አርቃን ማእዘናት ሳይጠራ bingo የሚለዉን ክሊክ ካደርጉን ከጨዋታው እንታገዳለን</div>
+      <div style="font-size:12px;color:#fff;font-weight:600;margin-bottom:6px">Consequences:</div>
+      <div style="font-size:12px;color:var(--gray);line-height:1.8">🚫 Immediate removal from current game<br>💸 Loss of entry fee/stake<br>⏸ Temporary suspension from playing</div>
+    </div>
+    <div style="background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.3);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="color:var(--purple);font-weight:700;font-size:13px;margin-bottom:8px">✅ Valid BINGO Conditions</div>
+      <div style="font-size:12px;color:var(--gray);line-height:1.8">• Complete horizontal line (5 numbers)<br>• Complete vertical line (5 numbers)<br>• Complete diagonal line (5 numbers)<br>• All four corners marked</div>
+    </div>
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="color:var(--red);font-weight:700;font-size:13px;margin-bottom:8px">🚫 Invalid BINGO Attempts</div>
+      <div style="font-size:12px;color:var(--gray);line-height:1.8">• Incomplete lines or patterns<br>• Random marked numbers<br>• Premature BINGO calls<br>• False pattern claims</div>
+    </div>
+    <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:12px">
+      <div style="color:var(--blue);font-weight:700;font-size:13px;margin-bottom:8px">✨ Pro Tips to Avoid Penalties</div>
+      <div style="font-size:12px;color:var(--gray);line-height:1.8">• Double-check your pattern before clicking BINGO<br>• Make sure you have exactly 5 numbers in a line<br>• Verify all four corners are marked for corner wins<br>• Take your time — there's no rush to call BINGO<br>• If unsure, wait for more numbers to be called</div>
+    </div>
+  </div>
+</div>
 
 <div class="bottom-nav">
   <div class="nav-item active" id="navHome" onclick="navGo('screenLobby','navHome')">
@@ -387,8 +553,8 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
     <span class="nav-icon">⚙️</span><span>ADMIN</span>
     <span class="nav-dot show" id="adminDot" style="display:none"></span>
   </div>
-  <div class="nav-item" id="navCards" onclick="navGo('screenCards','navCards')">
-    <span class="nav-icon">🃏</span><span>CARDS</span>
+  <div class="nav-item" id="navCards" onclick="navGo('screenRules','navCards')">
+  <span class="nav-icon">📋</span><span>RULES</span>
   </div>
 </div>
 
