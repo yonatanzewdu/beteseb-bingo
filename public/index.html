@@ -497,7 +497,27 @@ function handle(msg){
       document.getElementById('cardLabel').innerText=`Card #${msg.cardId}`;
       document.getElementById('potVal').innerText=`${msg.pot} ETB`;
       document.getElementById('playerCountVal').innerText=msg.playerCount;
-      markedIndices=new Set([12]); renderCard(myCardNumbers); break;
+      markedIndices=new Set([12]); renderCard(myCardNumbers);
+      // Show bingo button only for active players
+      document.getElementById('bingoBtn').style.display='flex';
+      break;
+
+    case 'spectating':
+      // Spectator: go to game screen but show spectator UI instead of card
+      myCardId=null; myCardNumbers=[];
+      document.getElementById('potVal').innerText=`${msg.pot} ETB`;
+      document.getElementById('playerCountVal').innerText=msg.playerCount;
+      document.getElementById('cardLabel').innerText='👀 Watching';
+      document.getElementById('cardBody').innerHTML=`
+        <div style="grid-column:span 5;text-align:center;padding:30px 10px;color:var(--gray);font-size:13px;line-height:2">
+          <div style="font-size:36px;margin-bottom:8px">👀</div>
+          <div style="font-weight:700;color:#fff;margin-bottom:4px">Spectator Mode</div>
+          You didn't select a card.<br>Watch the game live below.
+        </div>`;
+      document.getElementById('bingoBtn').style.display='none';
+      resetTrackerBoard(); claimWindowOpen=false;
+      navGo('screenGame','navGame');
+      break;
 
     case 'gameStart':
       document.getElementById('potVal').innerText=`${msg.pot} ETB`;
