@@ -31,6 +31,9 @@ function isAdminPhone(phone) {
 }
 const HOUSE_CUT   = 0.20; // 20% house, 80% winner
 
+// ─── PAYMENT INFO (admin-editable) ─────────────────────────────
+let PAYMENT_INFO = { telebirrNumber: '0967423275', telebirrName: 'Lidetua' };
+
 // ─── DATABASE ─────────────────────────────────────────────────
 let db = null;
 if (process.env.DATABASE_URL) {
@@ -186,10 +189,35 @@ if (process.env.DATABASE_URL) {
 
       async getLeaderboard() {
         return this.q('SELECT name,total_wins,total_games,total_winnings FROM users ORDER BY total_winnings DESC LIMIT 10');
+      },
+
+      // ── Settings (key/value store) ──
+      async ensureSettingsTable() {
+        await this.q(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
+      },
+      async getSetting(key) {
+        const r = await this.q('SELECT value FROM settings WHERE key=$1', [key]);
+        return r[0]?.value;
+      },
+      async setSetting(key, value) {
+        await this.q(
+          `INSERT INTO settings(key,value) VALUES($1,$2)
+           ON CONFLICT(key) DO UPDATE SET value=$2`,
+          [key, value]
+        );
       }
     };
 
-    pool.query('SELECT 1').then(() => console.log('✅ PostgreSQL connected')).catch(e => { console.error('❌ DB:', e.message); db = null; });
+    pool.query('SELECT 1').then(async () => {
+      console.log('✅ PostgreSQL connected');
+      try {
+        await db.ensureSettingsTable();
+        const num  = await db.getSetting('telebirr_number');
+        const name = await db.getSetting('telebirr_name');
+        if (num)  PAYMENT_INFO.telebirrNumber = num;
+        if (name) PAYMENT_INFO.telebirrName   = name;
+      } catch (e) { console.error('⚠️ Settings load:', e.message); }
+    }).catch(e => { console.error('❌ DB:', e.message); db = null; });
   } catch(e) { console.log('⚠️ pg error:', e.message); }
 } else {
   console.log('ℹ️ No DATABASE_URL — memory mode');
@@ -654,6 +682,26 @@ app.post('/api/admin/withdrawals/:id/reject', adminAuth, async(req,res)=>{
 app.get('/api/admin/search', adminAuth, async(req,res)=>{
   if(!db) return res.json([]);
   res.json(await db.searchByPhone(req.query.phone||''));
+});
+
+// ── Payment info (Telebirr account shown on deposit page) ──
+app.get('/api/payment-info', (req,res)=>{
+  res.json(PAYMENT_INFO);
+});
+app.get('/api/admin/payment-settings', adminAuth, (req,res)=>{
+  res.json(PAYMENT_INFO);
+});
+app.post('/api/admin/payment-settings', adminAuth, async(req,res)=>{
+  const { telebirrNumber, telebirrName } = req.body || {};
+  if(telebirrNumber && String(telebirrNumber).trim()) PAYMENT_INFO.telebirrNumber = String(telebirrNumber).trim();
+  if(telebirrName && String(telebirrName).trim())     PAYMENT_INFO.telebirrName   = String(telebirrName).trim();
+  if(db){
+    try{
+      await db.setSetting('telebirr_number', PAYMENT_INFO.telebirrNumber);
+      await db.setSetting('telebirr_name',   PAYMENT_INFO.telebirrName);
+    }catch(e){ console.error('⚠️ Settings save:', e.message); }
+  }
+  res.json({ ok:true, ...PAYMENT_INFO });
 });
 
 app.get('/api/leaderboard', async(req,res)=>{
