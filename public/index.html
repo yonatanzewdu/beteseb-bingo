@@ -698,7 +698,13 @@ function handle(msg){
     case 'joinedRoom':
       myRoomId=msg.roomId; myStakeId=msg.stakeId; myCardId=null;
       markedIndices=new Set([12]); setBalance(msg.balance);
-      navGo('screenCards','navCards'); break;
+      if(msg.status==='playing'){
+        // Late join — game already in progress. A 'spectating' message
+        // with the live state follows immediately; it handles navigation.
+      } else {
+        navGo('screenCards','navCards');
+      }
+      break;
 
     case 'cardPoolUpdate':
       cardPool=msg.pool; renderCardPool(msg.pool); break;
@@ -737,6 +743,23 @@ function handle(msg){
         </div>`;
       document.getElementById('bingoBtn').style.display='none';
       resetTrackerBoard(); claimWindowOpen=false;
+
+      // Late join: catch up on numbers already called this game
+      if(msg.calledNumbers && msg.calledNumbers.length){
+        msg.calledNumbers.forEach(n=>{
+          const el=document.getElementById('tb'+n);
+          if(el) el.className='t-ball '+colClass(n);
+        });
+        prevLastCalled=msg.calledNumbers[msg.calledNumbers.length-1];
+        const tb=document.getElementById('tb'+prevLastCalled);
+        if(tb) tb.classList.add('latest');
+        const cfg=numConfig(prevLastCalled);
+        document.getElementById('ballCircle').style.background=cfg.color;
+        document.getElementById('ballLetter').innerText=cfg.letter;
+        document.getElementById('ballNumber').innerText=prevLastCalled;
+        document.getElementById('ballSub').innerText=`${msg.calledNumbers.length}/75`;
+      }
+
       navGo('screenGame','navGame');
       break;
 
