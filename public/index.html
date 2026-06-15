@@ -288,7 +288,7 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
         <div class="telebirr-number" id="telebirrNumber">0967423275</div>
         <button onclick="copyPhone()" id="copyBtn" style="background:rgba(250,204,21,.15);border:1px solid var(--gold);color:var(--gold);padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s">📋 Copy</button>
       </div>
-      <div class="telebirr-name" style="font-size:13px;color:#fff;font-weight:600">Lidetua</div>
+      <div class="telebirr-name" id="telebirrName" style="font-size:13px;color:#fff;font-weight:600">Lidetua</div>
       <div style="font-size:11px;color:var(--gray);margin-top:2px">Beteseb Bingo</div>
     </div>
       <!-- Amharic Deposit Steps -->
@@ -298,7 +298,7 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 
     <div style="background:var(--card);border-radius:10px;padding:13px;display:flex;align-items:center;gap:12px">
       <div style="width:30px;height:30px;background:var(--purple);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0">1</div>
-      <div style="font-size:12px;color:var(--gold);line-height:1.6">ከላይ ያለውን <strong style="color:#fff">0967423275</strong> የቴሌብር ቁጥር copy ያድርጉ ወይም ያስታውሱ</div>
+      <div style="font-size:12px;color:var(--gold);line-height:1.6">ከላይ ያለውን <strong style="color:#fff" id="depositStepNumber">0967423275</strong> የቴሌብር ቁጥር copy ያድርጉ ወይም ያስታውሱ</div>
     </div>
 
     <div style="background:var(--card);border-radius:10px;padding:13px;display:flex;align-items:center;gap:12px">
@@ -366,6 +366,7 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
       Withdrawals <span class="badge-count" id="withdrawCount">0</span>
     </div>
     <div class="admin-tab" onclick="switchAdminTab('search')">Search</div>
+    <div class="admin-tab" onclick="switchAdminTab('settings')">Settings</div>
   </div>
 
   <div id="adminDeposits" class="admin-section active">
@@ -384,6 +385,22 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
       <button class="btn-search" onclick="adminSearchUser()">Search</button>
     </div>
     <div id="searchResults"></div>
+  </div>
+
+  <div id="adminSettings" class="admin-section">
+    <div style="background:var(--card);border:1px solid #3c2463;border-radius:12px;padding:16px">
+      <div style="font-family:'Orbitron',sans-serif;font-size:13px;font-weight:900;color:var(--gold);margin-bottom:14px">💳 Telebirr Payment Account</div>
+      <div class="form-group">
+        <label class="form-label">Telebirr Number</label>
+        <input class="form-input" type="text" id="settingsTelebirrNumber" placeholder="e.g. 0967423275">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Account Holder Name</label>
+        <input class="form-input" type="text" id="settingsTelebirrName" placeholder="e.g. Lidetua">
+      </div>
+      <button class="btn-submit btn-green" onclick="adminSavePaymentSettings()">💾 Save Changes</button>
+      <div id="settingsMsg" style="display:none" class="status-msg"></div>
+    </div>
   </div>
 </div>
 
@@ -804,13 +821,15 @@ function submitWithdrawal(){
 // ─── ADMIN ────────────────────────────────────────────────────
 function switchAdminTab(tab){
   document.querySelectorAll('.admin-tab').forEach((t,i)=>{
-    t.classList.toggle('active',['deposits','withdrawals','search'][i]===tab);
+    t.classList.toggle('active',['deposits','withdrawals','search','settings'][i]===tab);
   });
   document.getElementById('adminDeposits').classList.toggle('active',tab==='deposits');
   document.getElementById('adminWithdrawals').classList.toggle('active',tab==='withdrawals');
   document.getElementById('adminSearch').classList.toggle('active',tab==='search');
+  document.getElementById('adminSettings').classList.toggle('active',tab==='settings');
   if(tab==='deposits') adminLoadDeposits();
   if(tab==='withdrawals') adminLoadWithdrawals();
+  if(tab==='settings') adminLoadPaymentSettings();
 }
 
 async function adminFetch(path, method='GET'){
@@ -961,6 +980,52 @@ function showUserDetail(u){
 function esc(str){
   if(!str) return '';
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── ADMIN: PAYMENT SETTINGS ───────────────────────────────────
+async function adminLoadPaymentSettings(){
+  try{
+    const data=await adminFetch(`/api/admin/payment-settings?token=${adminToken}`);
+    document.getElementById('settingsTelebirrNumber').value=data.telebirrNumber||'';
+    document.getElementById('settingsTelebirrName').value=data.telebirrName||'';
+  }catch(e){showToast('Failed to load settings','error');}
+}
+async function adminSavePaymentSettings(){
+  const telebirrNumber=document.getElementById('settingsTelebirrNumber').value.trim();
+  const telebirrName=document.getElementById('settingsTelebirrName').value.trim();
+  if(!telebirrNumber||!telebirrName){showWalletMsg('settingsMsg','Both fields are required.','error');return;}
+  try{
+    const res=await fetch(`/api/admin/payment-settings?token=${adminToken}`,{
+      method:'POST',
+      headers:{'x-admin-token':adminToken,'Content-Type':'application/json'},
+      body:JSON.stringify({telebirrNumber,telebirrName})
+    });
+    const data=await res.json();
+    if(data.ok){
+      showWalletMsg('settingsMsg','✅ Payment info updated!','success');
+      applyPaymentInfo(data);
+    } else {
+      showWalletMsg('settingsMsg','Failed to save.','error');
+    }
+  }catch(e){showWalletMsg('settingsMsg','Failed to save.','error');}
+}
+
+// ─── PAYMENT INFO (deposit page) ───────────────────────────────
+function applyPaymentInfo(info){
+  if(!info) return;
+  const numEl=document.getElementById('telebirrNumber');
+  const nameEl=document.getElementById('telebirrName');
+  const stepNumEl=document.getElementById('depositStepNumber');
+  if(numEl) numEl.innerText=info.telebirrNumber;
+  if(nameEl) nameEl.innerText=info.telebirrName;
+  if(stepNumEl) stepNumEl.innerText=info.telebirrNumber;
+}
+async function loadPaymentInfo(){
+  try{
+    const res=await fetch('/api/payment-info');
+    const data=await res.json();
+    applyPaymentInfo(data);
+  }catch(e){/* keep defaults */}
 }
 
 // ─── GAME: NUMBER CALLED ──────────────────────────────────────
@@ -1208,6 +1273,7 @@ function toggleSound(){
 // ─── INIT ────────────────────────────────────────────────────
 buildTracker();
 connect();
+loadPaymentInfo();
 </script>
 </body>
 </html>
