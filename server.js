@@ -30,6 +30,8 @@ function isAdminPhone(phone) {
   return normalized === ADMIN_PHONE;
 }
 const HOUSE_CUT   = 0.20; // 20% house, 80% winner
+// Prize pool that players actually see/win — total pot minus house cut
+function prizePoolOf(room){ return Math.floor(room.pot*(1-HOUSE_CUT)); }
 
 // ─── PAYMENT INFO (admin-editable) ─────────────────────────────
 let PAYMENT_INFO = { telebirrNumber: '0967423275', telebirrName: 'Lidetua' };
@@ -227,6 +229,7 @@ if (process.env.DATABASE_URL) {
 const LOBBY_WAIT_MS    = 30000;
 const CALL_INTERVAL_MS = 5000;
 const CLAIM_WINDOW_MS  = 4800;
+const CLAIM_COLLECT_MS = 700; // grace period to gather simultaneous BINGO claims
 const TOTAL_CARDS      = 400;
 
 const STAKES = [
@@ -282,7 +285,7 @@ function getOrCreateRoom(sid){
   if(r) return r;
   const s=STAKES.find(s=>s.id===sid), roomId=uuidv4();
   r={roomId,stakeId:sid,stake:s.amount,status:'waiting',players:[],calledNumbers:[],
-     availableNumbers:Array.from({length:75},(_,i)=>i+1),callTimer:null,countdownTimer:null,
+     availableNumbers:Array.from({length:75},(_,i)=>i+1),callTimer:null,countdownTimer:null,claimEvalTimer:null,
      countdownLeft:Math.ceil(LOBBY_WAIT_MS/1000),claimWindowOpen:false,claimedThisRound:[],
      takenCardIds:new Set(),pot:0,dbGameId:null};
   rooms[roomId]=r; return r;
@@ -339,14 +342,14 @@ async function startGame(room){
     if(p.cardId){
       // Active player — send their card
       const card=getCard(p.cardId);
-      send(p.ws,{type:'yourCard',cardId:p.cardId,cardNumbers:card?card.numbers:[],pot:room.pot,playerCount:room.players.length,spectator:false});
+      send(p.ws,{type:'yourCard',cardId:p.cardId,cardNumbers:card?card.numbers:[],pot:prizePoolOf(room),playerCount:room.players.length,spectator:false});
     } else {
       // Spectator — tell them they are watching
-      send(p.ws,{type:'spectating',pot:room.pot,playerCount:room.players.filter(p=>p.hasPaid).length});
+      send(p.ws,{type:'spectating',pot:prizePoolOf(room),playerCount:room.players.filter(p=>p.hasPaid).length,calledNumbers:room.calledNumbers});
     }
   });
 
-  broadcast(room,{type:'gameStart',pot:room.pot,players:room.players.map(p=>({playerId:p.playerId,playerName:p.playerName}))});
+  broadcast(room,{type:'gameStart',pot:prizePoolOf(room),players:room.players.map(p=>({playerId:p.playerId,playerName:p.playerName}))});
   broadcastLobby(); scheduleNextCall(room);
 }
 
@@ -368,6 +371,7 @@ function callNumber(room){
 }
 
 function evaluateClaims(room){
+  room.claimEvalTimer=null;
   const winners=[], cheaters=[];
   room.claimedThisRound.forEach(claim=>{
     const p=room.players.find(p=>p.playerId===claim.playerId);
@@ -395,14 +399,13 @@ function evaluateClaims(room){
 async function endGame(room, winners, customMsg, noWinner){
   if(room.callTimer) clearTimeout(room.callTimer);
   if(room.countdownTimer) clearInterval(room.countdownTimer);
+  if(room.claimEvalTimer) clearTimeout(room.claimEvalTimer);
   room.status='finished'; room.claimWindowOpen=false;
 
   let winAmount=0, winnerNames=[], winnerTids=[];
 
   if(winners&&winners.length>0){
-    const totalPot=room.pot;
-    const houseCut=Math.floor(totalPot*HOUSE_CUT);
-    const prizePool=totalPot-houseCut;
+    const prizePool=prizePoolOf(room);
     // Split prize pool equally among winners
     winAmount=Math.floor(prizePool/winners.length);
     winnerNames=winners.map(w=>w.playerName);
@@ -521,9 +524,21 @@ if(!ep&&msg.telegramId){
         case 'joinRoom':{
           const sc=STAKES.find(s=>s.id===msg.stakeId);
           if(!sc) return send(ws,{type:'error',message:'Invalid stake.'});
-          if(client.balance<sc.amount) return send(ws,{type:'error',message:`Need ${sc.amount} ETB. Please deposit.`});
           if(!client.playerName) return send(ws,{type:'error',message:'Please set your name first.'});
           leaveRoom(client);
+
+          // ── If a game for this stake is already in progress, join as a spectator ──
+          const liveRoom=Object.values(rooms).find(r=>r.stakeId===msg.stakeId&&r.status==='playing');
+          if(liveRoom){
+            liveRoom.players.push({playerId:client.playerId,playerName:client.playerName,telegramId:client.telegramId,ws,cardId:null,hasPaid:false,disqualified:false});
+            client.roomId=liveRoom.roomId;
+            send(ws,{type:'joinedRoom',roomId:liveRoom.roomId,stakeId:liveRoom.stakeId,balance:client.balance,status:liveRoom.status});
+            send(ws,{type:'spectating',pot:prizePoolOf(liveRoom),playerCount:liveRoom.players.filter(p=>p.hasPaid).length,calledNumbers:liveRoom.calledNumbers});
+            broadcastLobby();
+            break;
+          }
+
+          if(client.balance<sc.amount) return send(ws,{type:'error',message:`Need ${sc.amount} ETB. Please deposit.`});
           const room=getOrCreateRoom(msg.stakeId);
           if(room.status!=='waiting'&&room.status!=='countdown') return send(ws,{type:'error',message:'Game already running.'});
           room.players.push({playerId:client.playerId,playerName:client.playerName,telegramId:client.telegramId,ws,cardId:null,hasPaid:false,disqualified:false});
@@ -560,12 +575,18 @@ if(!ep&&msg.telegramId){
           const room=rooms[client.roomId];
           if(!room||room.status!=='playing') return;
           const p=room.players.find(p=>p.playerId===client.playerId);
-          if(!p||p.disqualified) return;
+          if(!p||p.disqualified||!p.cardId) return;
           if(!room.claimWindowOpen) return send(ws,{type:'claimTooLate',message:'Too late!'});
           if(!room.claimedThisRound.find(c=>c.playerId===client.playerId))
             room.claimedThisRound.push({playerId:client.playerId,markedIndices:msg.markedIndices||[]});
+
+          // Pause the next-number timer. Give a brief grace period so that
+          // other players who hit BINGO at (almost) the same moment are
+          // collected and evaluated together — enabling split wins.
           if(room.callTimer) clearTimeout(room.callTimer);
-          evaluateClaims(room); break;
+          if(room.claimEvalTimer) clearTimeout(room.claimEvalTimer);
+          room.claimEvalTimer=setTimeout(()=>evaluateClaims(room), CLAIM_COLLECT_MS);
+          break;
         }
         case 'leaveRoom':
           leaveRoom(client); send(ws,{type:'leftRoom',balance:client.balance}); break;
