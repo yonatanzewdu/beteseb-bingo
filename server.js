@@ -626,24 +626,39 @@ if(!ep&&msg.telegramId){
           broadcastCardPool(room); break;
         }
         case 'claimBingo':{
-          if(!client.roomId) return;
-          const room=rooms[client.roomId];
-          if(!room||room.status!=='playing') return;
-          const p=room.players.find(p=>p.playerId===client.playerId);
-          if(!p||p.disqualified||(!p.cardId&&!p.cardId2)) return;
-          if(!room.claimWindowOpen) return send(ws,{type:'claimTooLate',message:'Too late!'});
-          if(!room.claimedThisRound.find(c=>c.playerId===client.playerId))
-            room.claimedThisRound.push({
-              playerId:client.playerId,
-              markedIndices:msg.markedIndices||[],
-              cardId2:msg.cardId2||null,
-              markedIndices2:msg.markedIndices2||[]
-            });
-          if(room.callTimer) clearTimeout(room.callTimer);
-          if(room.claimEvalTimer) clearTimeout(room.claimEvalTimer);
-          room.claimEvalTimer=setTimeout(()=>evaluateClaims(room), CLAIM_COLLECT_MS);
-          break;
-        }
+  if(!client.roomId) return;
+  const room=rooms[client.roomId];
+  if(!room||room.status!=='playing') return;
+  const p=room.players.find(p=>p.playerId===client.playerId);
+  if(!p||p.disqualified||(!p.cardId&&!p.cardId2)) return;
+  if(!room.claimWindowOpen) return send(ws,{type:'claimTooLate',message:'Too late!'});
+
+  // Check this player immediately
+  const card=getCard(p.cardId);
+  const card2=p.cardId2?getCard(p.cardId2):null;
+  const marked=msg.markedIndices||[];
+  const marked2=msg.markedIndices2||[];
+
+  const validCard1=card&&checkWin(card.numbers,room.calledNumbers,marked);
+  const validCard2=card2&&checkWin(card2.numbers,room.calledNumbers,marked2);
+
+  if(validCard1||validCard2){
+    // Valid BINGO — stop timer and end game
+    if(room.callTimer) clearTimeout(room.callTimer);
+    if(room.claimEvalTimer) clearTimeout(room.claimEvalTimer);
+    if(!room.claimedThisRound.find(c=>c.playerId===client.playerId))
+      room.claimedThisRound.push({playerId:client.playerId,markedIndices:marked,cardId2:msg.cardId2||null,markedIndices2:marked2});
+    evaluateClaims(room);
+  } else {
+    // False claim — disqualify only this player, game continues uninterrupted
+    p.disqualified=true;
+    send(ws,{type:'disqualified',message:'🚫 False BINGO claim — you are disqualified!'});
+    if(db&&client.telegramId&&room.dbGameId){
+      try{await db.disqualifyParticipant(room.dbGameId,client.telegramId);}catch(e){}
+    }
+  }
+  break;
+}
         case 'leaveRoom':
           leaveRoom(client); send(ws,{type:'leftRoom',balance:client.balance}); break;
 
