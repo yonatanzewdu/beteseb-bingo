@@ -548,7 +548,7 @@ if(!ep&&msg.telegramId){
             break;
           }
 
-          if(client.balance<sc.amount) return send(ws,{type:'error',message:`Need ${sc.amount} ETB. Please deposit.`});
+          
           const room=getOrCreateRoom(msg.stakeId);
           if(room.status!=='waiting'&&room.status!=='countdown') return send(ws,{type:'error',message:'Game already running.'});
           room.players.push({playerId:client.playerId,playerName:client.playerName,telegramId:client.telegramId,ws,cardId:null,cardId2:null,hasPaid:false,disqualified:false});
