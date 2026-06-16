@@ -45,34 +45,33 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 .stake-etb{font-family:'Orbitron',sans-serif;font-size:22px;color:var(--gold);margin-bottom:4px}
 .stake-info{font-size:12px;color:var(--gray)}
 
-/* TWO CARD SELECTION */
-/* Card selection bottom tray */
-.card-tray{position:sticky;bottom:68px;left:0;right:0;background:var(--panel);border-top:2px solid #3c2463;padding:10px 12px;display:flex;gap:8px;z-index:50;margin:0 -15px}
-.tray-slot{flex:1;background:var(--card);border:2px dashed #4a2d7a;border-radius:10px;padding:8px 6px;text-align:center;position:relative;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:border-color .2s}
-.tray-slot.filled{border-style:solid;border-color:var(--green);background:rgba(34,197,94,.08)}
-.tray-slot-label{font-size:10px;color:var(--gray);text-transform:uppercase;font-weight:700;margin-bottom:3px}
-.tray-slot-card{font-family:'Orbitron',sans-serif;font-size:15px;font-weight:900;color:var(--green)}
-.tray-slot-empty{font-size:11px;color:#4a2d7a}
-.tray-cancel{position:absolute;top:3px;right:5px;background:var(--red);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;line-height:1}
-.tray-mini{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;margin-top:4px;width:100%}
-.tray-mini-cell{font-size:7px;background:#1a0a3e;color:#a78bfa;text-align:center;padding:2px 0;border-radius:2px;font-weight:700}
-.tray-mini-cell.tm{background:var(--purple);color:#fff}
-.tray-mini-cell.tf{background:var(--purple);color:#fff;font-size:6px}
-
-/* TWO CARDS GAME VIEW */
-.cards-game-wrap{display:flex;flex-direction:column;gap:14px}
-.card-container{background:var(--panel);border-radius:16px;padding:12px;box-shadow:0 8px 20px rgba(0,0,0,.5)}
-.card-id-tag{font-size:12px;color:var(--gray);margin-bottom:8px;padding-left:4px;display:flex;justify-content:space-between;align-items:center}
-.card-slot-badge{font-size:10px;background:var(--purple);color:#fff;padding:2px 8px;border-radius:10px;font-weight:700}
+/* CARD SELECTION */
+.cd-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .cd-countdown{color:var(--gold);font-weight:700;font-size:14px}
 .card-search{width:100%;background:var(--card);border:1px solid #4a2d7a;color:#fff;padding:9px 12px;border-radius:8px;font-size:14px;margin-bottom:10px;outline:none}
 .card-search::placeholder{color:var(--gray)}
-.pool-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;height:360px;overflow-y:auto;padding:4px}
+.pool-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;height:320px;overflow-y:auto;padding:4px}
 .pool-btn{background:var(--card);border:1px solid #4a2d7a;color:#fff;padding:10px 4px;border-radius:8px;font-weight:700;cursor:pointer;text-align:center;font-size:12px;transition:all .15s}
 .pool-btn:hover{border-color:var(--gold)}
 .pool-btn.taken{background:#3a1515;color:#ff8888;cursor:not-allowed;opacity:.55}
-.pool-btn.mine{background:var(--green);color:#fff;border-color:#fff}
+.pool-btn.mine1{background:var(--purple)!important;color:#fff!important;border-color:#a78bfa!important}
+.pool-btn.mine2{background:#d97706!important;color:#fff!important;border-color:#fbbf24!important}
+/* Selected card slots */
+.selected-cards-row{display:flex;gap:8px;margin-bottom:10px}
+.selected-slot{flex:1;background:var(--card);border:2px dashed #4a2d7a;border-radius:10px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:52px}
+.selected-slot.filled1{border:2px solid var(--purple);background:rgba(139,92,246,.12)}
+.selected-slot.filled2{border:2px solid #d97706;background:rgba(217,119,6,.12)}
+.selected-slot .slot-label{font-size:10px;color:var(--gray);text-transform:uppercase;margin-bottom:2px}
+.selected-slot .slot-num{font-family:'Orbitron',sans-serif;font-size:15px;font-weight:900}
 .leave-btn{width:100%;margin-top:12px;background:transparent;border:1px solid #4a2d7a;color:var(--gray);padding:11px;border-radius:8px;font-size:14px;cursor:pointer}
+/* Dual cards side by side in game */
+.dual-cards-wrap{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.dual-cards-wrap .card-container{margin-bottom:0;padding:8px}
+.dual-cards-wrap .bingo-cell{height:34px;font-size:11px;border-radius:4px}
+.dual-cards-wrap .bingo-col-head{height:26px;font-size:12px}
+.dual-cards-wrap .card-id-tag{font-size:10px;margin-bottom:4px}
+.dual-cards-wrap .bingo-body{gap:3px}
+.dual-cards-wrap .bingo-header{margin-bottom:5px}
 
 /* GAME */
 .game-stats-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
@@ -246,24 +245,20 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
     <h2 class="screen-title" style="margin:0">CHOOSE YOUR CARDS</h2>
     <div class="cd-countdown" id="cdCountdown">Waiting...</div>
   </div>
-  <div style="font-size:12px;color:var(--gray);margin-bottom:8px">
-    Tap a card to select it. You can pick up to <strong style="color:#fff">2 cards</strong>. Tap a selected card to cancel it.
+  <!-- Selected card slots -->
+  <div class="selected-cards-row">
+    <div class="selected-slot" id="slot1">
+      <div class="slot-label" style="color:var(--purple)">Card 1</div>
+      <div class="slot-num" style="color:var(--purple)" id="slot1Num">—</div>
+    </div>
+    <div class="selected-slot" id="slot2">
+      <div class="slot-label" style="color:#d97706">Card 2 (optional)</div>
+      <div class="slot-num" style="color:#d97706" id="slot2Num">—</div>
+    </div>
   </div>
   <input class="card-search" type="number" id="cardSearch" placeholder="Search card # (1–400)..." min="1" max="400">
   <div id="poolGrid" class="pool-grid"></div>
   <button class="leave-btn" onclick="leaveRoom()">← Leave Room</button>
-
-  <!-- Bottom tray showing selected cards with mini preview -->
-  <div class="card-tray">
-    <div class="tray-slot" id="traySlot0">
-      <div class="tray-slot-label">Card 1</div>
-      <div class="tray-slot-empty">— tap to pick —</div>
-    </div>
-    <div class="tray-slot" id="traySlot1">
-      <div class="tray-slot-label">Card 2 <span style="color:#4a2d7a;font-size:9px">(optional)</span></div>
-      <div class="tray-slot-empty">— tap to pick —</div>
-    </div>
-  </div>
 </div>
 
 <div id="screenGame" class="screen">
@@ -279,9 +274,28 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
     <div class="stat-box"><div class="lbl">Players</div><div id="playerCountVal" class="val">0</div><div style="font-size:9px;color:var(--green)">in game</div></div>
   </div>
   <div class="claim-bar-wrap"><div class="claim-bar" id="claimBar"></div></div>
-  <div class="cards-game-wrap" id="cardsGameWrap">
-    <!-- Cards rendered dynamically -->
+  <!-- Dual cards wrapper — becomes side-by-side when two cards selected -->
+  <div id="cardsWrap">
+    <div class="card-container" id="cardContainer1">
+      <div id="cardLabel" class="card-id-tag">Card #---</div>
+      <div class="bingo-header">
+        <div class="bingo-col-head bh-b">B</div><div class="bingo-col-head bh-i">I</div>
+        <div class="bingo-col-head bh-n">N</div><div class="bingo-col-head bh-g">G</div>
+        <div class="bingo-col-head bh-o">O</div>
+      </div>
+      <div id="cardBody" class="bingo-body"></div>
+    </div>
+    <div class="card-container" id="cardContainer2" style="display:none">
+      <div id="cardLabel2" class="card-id-tag" style="color:#d97706">Card #---</div>
+      <div class="bingo-header">
+        <div class="bingo-col-head bh-b">B</div><div class="bingo-col-head bh-i">I</div>
+        <div class="bingo-col-head bh-n">N</div><div class="bingo-col-head bh-g">G</div>
+        <div class="bingo-col-head bh-o">O</div>
+      </div>
+      <div id="cardBody2" class="bingo-body"></div>
+    </div>
   </div>
+  <button id="bingoBtn" class="bingo-btn" onclick="claimBingo()">🎉 BINGO!</button>
   <div class="tracker-wrap"><div id="trackerGrid" class="tracker-grid"></div></div>
 </div>
 
@@ -637,8 +651,8 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 <script>
 // ─── STATE ────────────────────────────────────────────────────
 let ws, myPlayerId, myName='', myRoomId=null, myStakeId=null;
-// Two-card state: myCards[0] and myCards[1], each = {cardId, numbers, marked: Set}
-let myCards=[null,null], activeSlot=1, currentBalance=0;
+let myCardId=null, myCardNumbers=[], markedIndices=new Set(), currentBalance=0;
+let myCardId2=null, myCardNumbers2=[], markedIndices2=new Set();
 let claimWindowOpen=false, claimBarAnim=null, prevLastCalled=null;
 let telegramId=null, isAdmin=false, adminToken='';
 let cardPool=[];
@@ -722,11 +736,9 @@ function handle(msg){
     case 'lobbyUpdate': renderStakes(msg.stakes); break;
 
     case 'joinedRoom':
-      myRoomId=msg.roomId; myStakeId=msg.stakeId;
-      myCards=[null,null]; markedIndices=[new Set([12]),new Set([12])];
-      activeSlot=1;
-      setBalance(msg.balance);
-      updateTray();
+      myRoomId=msg.roomId; myStakeId=msg.stakeId; myCardId=null; myCardId2=null;
+      markedIndices=new Set([12]); markedIndices2=new Set([12]); setBalance(msg.balance);
+      resetSlotUI();
       if(msg.status==='playing'){
         // Late join — spectating message follows
       } else {
@@ -738,8 +750,13 @@ function handle(msg){
       cardPool=msg.pool; renderCardPool(msg.pool); break;
 
     case 'cardSelected':
-      myCards[msg.slot-1]={cardId:msg.cardId,numbers:msg.cardNumbers,marked:new Set([12])};
-      renderCardPool(cardPool);
+      if(msg.slot===2){
+        myCardId2=msg.cardId; myCardNumbers2=msg.cardNumbers;
+        updateSlotUI();
+      } else {
+        myCardId=msg.cardId; myCardNumbers=msg.cardNumbers;
+        updateSlotUI();
+      }
       break;
 
     case 'countdown':
@@ -748,34 +765,30 @@ function handle(msg){
     case 'waitingForPlayers':
       document.getElementById('cdCountdown').innerText='Waiting for players...'; break;
 
-    case 'yourCards':
-      // Server sends array of cards at game start
-      myCards=msg.cards.map(c=>({cardId:c.cardId,numbers:c.cardNumbers,marked:new Set([12])}));
-      while(myCards.length<2) myCards.push(null);
-      document.getElementById('potVal').innerText=`${msg.pot} ETB`;
-      document.getElementById('playerCountVal').innerText=msg.playerCount;
-      renderAllCards();
-      break;
-
-    // Legacy single-card support
     case 'yourCard':
-      myCards[0]={cardId:msg.cardId,numbers:msg.cardNumbers,marked:new Set([12])};
-      myCards[1]=null;
+      myCardId=msg.cardId; myCardNumbers=msg.cardNumbers;
+      myCardId2=msg.cardId2||null; myCardNumbers2=msg.cardNumbers2||[];
       document.getElementById('potVal').innerText=`${msg.pot} ETB`;
       document.getElementById('playerCountVal').innerText=msg.playerCount;
-      renderAllCards();
+      markedIndices=new Set([12]); markedIndices2=new Set([12]);
+      renderBothCards();
+      document.getElementById('bingoBtn').style.display='flex';
       break;
 
     case 'spectating':
-      myCards=[null,null];
+      myCardId=null; myCardNumbers=[]; myCardId2=null; myCardNumbers2=[];
       document.getElementById('potVal').innerText=`${msg.pot} ETB`;
       document.getElementById('playerCountVal').innerText=msg.playerCount;
-      document.getElementById('cardsGameWrap').innerHTML=`
-        <div style="text-align:center;padding:40px 10px;color:var(--gray);font-size:13px;line-height:2">
-          <div style="font-size:40px;margin-bottom:10px">👀</div>
-          <div style="font-weight:700;color:#fff;margin-bottom:4px;font-size:16px">Spectator Mode</div>
-          You didn't select a card.<br>Watch the game live.
+      document.getElementById('cardLabel').innerText='👀 Watching';
+      document.getElementById('cardContainer2').style.display='none';
+      document.getElementById('cardsWrap').classList.remove('dual-cards-wrap');
+      document.getElementById('cardBody').innerHTML=`
+        <div style="grid-column:span 5;text-align:center;padding:30px 10px;color:var(--gray);font-size:13px;line-height:2">
+          <div style="font-size:36px;margin-bottom:8px">👀</div>
+          <div style="font-weight:700;color:#fff;margin-bottom:4px">Spectator Mode</div>
+          You didn't select a card.<br>Watch the game live below.
         </div>`;
+      document.getElementById('bingoBtn').style.display='none';
       resetTrackerBoard(); claimWindowOpen=false;
       if(msg.calledNumbers&&msg.calledNumbers.length){
         msg.calledNumbers.forEach(n=>{const el=document.getElementById('tb'+n);if(el)el.className='t-ball '+colClass(n);});
@@ -794,17 +807,17 @@ function handle(msg){
     case 'gameStart':
       document.getElementById('potVal').innerText=`${msg.pot} ETB`;
       document.getElementById('playerCountVal').innerText=msg.players.length;
-      resetTrackerBoard(); claimWindowOpen=false;
+      resetTrackerBoard(); claimWindowOpen=false; setBingoBtn('idle');
       navGo('screenGame','navGame'); break;
 
     case 'reconnected':
-      myRoomId=msg.roomId;
-      myCards=(msg.cards||[]).map(c=>({cardId:c.cardId,numbers:c.cardNumbers,marked:new Set([12])}));
-      while(myCards.length<2) myCards.push(null);
+      myRoomId=msg.roomId; myCardId=msg.cardId; myCardNumbers=msg.cardNumbers;
+      myCardId2=msg.cardId2||null; myCardNumbers2=msg.cardNumbers2||[];
+      markedIndices=new Set([12]); markedIndices2=new Set([12]);
       document.getElementById('potVal').innerText=`${msg.pot} ETB`;
       document.getElementById('playerCountVal').innerText=msg.playerCount;
       msg.calledNumbers.forEach(n=>{const el=document.getElementById('tb'+n);if(el)el.className='t-ball '+colClass(n);});
-      renderAllCards(); navGo('screenGame','navGame'); break;
+      renderBothCards(); navGo('screenGame','navGame'); break;
 
     case 'numberCalled': onNumberCalled(msg); break;
     case 'claimTooLate': showToast('⏰ Too late! Claim before next number.','warn'); break;
@@ -813,16 +826,17 @@ function handle(msg){
     case 'gameOver': showWinnerOverlay(msg); break;
 
     case 'backToCardSelection':
-      myRoomId=msg.roomId; myCards=[null,null]; activeSlot=1;
+      myRoomId=msg.roomId; myCardId=null; myCardId2=null;
+      myCardNumbers=[]; myCardNumbers2=[];
+      markedIndices=new Set([12]); markedIndices2=new Set([12]);
       claimWindowOpen=false; hideWinnerOverlay(); if(msg.balance!==undefined)setBalance(msg.balance);
-      resetTrackerBoard(); setBingoBtn('idle');
+      resetTrackerBoard(); setBingoBtn('idle'); resetSlotUI();
       document.getElementById('cdCountdown').innerText='Waiting...';
-      updateTray();
       navGo('screenCards','navCards'); break;
 
     case 'balanceUpdate': setBalance(msg.balance); break;
 
-    case 'leftRoom': myRoomId=null; myCards=[null,null]; navGo('screenLobby','navHome'); break;
+    case 'leftRoom': myRoomId=null; myCardId=null; myCardId2=null; navGo('screenLobby','navHome'); break;
 
     case 'depositSubmitted':
       showWalletMsg('depositMsg', msg.message, 'success');
@@ -1098,7 +1112,7 @@ function onNumberCalled(msg){
   playBallAudio(n);
 
   claimWindowOpen=true; setBingoBtn('ready'); startClaimBar(msg.claimWindowMs||4800);
-  refreshAllCards();
+  refreshCardCells();
 }
 function startClaimBar(ms){
   const bar=document.getElementById('claimBar');
@@ -1111,161 +1125,19 @@ function startClaimBar(ms){
 }
 function cf_safe_func(){}
 function setBingoBtn(state){
-  // Update all bingo buttons (one per card)
-  document.querySelectorAll('.bingo-btn').forEach(btn=>{
-    btn.className='bingo-btn';
-    if(state==='ready') btn.classList.add('ready');
-    if(state==='locked') btn.classList.add('locked');
-  });
+  const btn=document.getElementById('bingoBtn');
+  btn.className='bingo-btn';
+  if(state==='ready') btn.classList.add('ready');
+  if(state==='locked') btn.classList.add('locked');
 }
-
-function claimBingo(cardIdx){
+function claimBingo(){
   if(!claimWindowOpen){showToast('⏰ Window closed — wait for next number','warn');return;}
-  const c=myCards[cardIdx];
-  if(!c){showToast('No card selected','error');return;}
-  wsSend({type:'claimBingo',cardId:c.cardId,markedIndices:Array.from(c.marked)});
+  if(!myCardId){showToast('No card selected','error');return;}
+  wsSend({type:'claimBingo',cardId:myCardId,markedIndices:Array.from(markedIndices),
+    cardId2:myCardId2||null,markedIndices2:myCardId2?Array.from(markedIndices2):null});
 }
 
-// ─── TWO-CARD RENDERING ───────────────────────────────────────
-function renderAllCards(){
-  const wrap=document.getElementById('cardsGameWrap');
-  wrap.innerHTML='';
-  const activCards=myCards.filter(Boolean);
-  if(!activCards.length){
-    wrap.innerHTML=`<div style="text-align:center;padding:40px;color:var(--gray)">No cards selected.</div>`;
-    return;
-  }
-  activCards.forEach((c,idx)=>{
-    const cardIdx=myCards.indexOf(c);
-    const div=document.createElement('div');
-    div.className='card-container';
-    div.innerHTML=`
-      <div class="card-id-tag">
-        <span>Card #${c.cardId}</span>
-        ${activCards.length>1?`<span class="card-slot-badge">Card ${cardIdx+1}</span>`:''}
-      </div>
-      <div class="bingo-header">
-        <div class="bingo-col-head bh-b">B</div><div class="bingo-col-head bh-i">I</div>
-        <div class="bingo-col-head bh-n">N</div><div class="bingo-col-head bh-g">G</div>
-        <div class="bingo-col-head bh-o">O</div>
-      </div>
-      <div class="bingo-body" id="cardBody${cardIdx}"></div>
-      <button class="bingo-btn" id="bingoBtn${cardIdx}" onclick="claimBingo(${cardIdx})">🎉 BINGO!</button>`;
-    wrap.appendChild(div);
-    renderCardBody(cardIdx);
-  });
-}
-
-function renderCardBody(cardIdx){
-  const c=myCards[cardIdx]; if(!c) return;
-  const body=document.getElementById('cardBody'+cardIdx); if(!body) return;
-  body.innerHTML='';
-  c.numbers.forEach((n,i)=>{
-    const cell=document.createElement('div'); cell.className='bingo-cell'; cell.id=`c${cardIdx}_${i}`;
-    if(i===12){cell.classList.add('free','marked');cell.innerText='FREE';}
-    else{
-      cell.innerText=n;
-      cell.addEventListener('click',()=>{
-        if(i===12) return;
-        if(c.marked.has(i)){c.marked.delete(i);cell.classList.remove('marked');}
-        else{c.marked.add(i);cell.classList.add('marked');}
-        refreshCardBody(cardIdx);
-      });
-    }
-    body.appendChild(cell);
-  });
-}
-
-function refreshCardBody(cardIdx){
-  const c=myCards[cardIdx]; if(!c) return;
-  c.numbers.forEach((n,i)=>{
-    if(i===12) return;
-    const cell=document.getElementById(`c${cardIdx}_${i}`); if(!cell) return;
-    const tb=document.getElementById('tb'+n); const isCalled=tb&&tb.className.includes(' c');
-    if(c.marked.has(i)){cell.classList.add('marked');cell.classList.remove('called-not-marked');}
-    else if(isCalled){cell.classList.add('called-not-marked');}
-    else{cell.classList.remove('marked','called-not-marked');}
-  });
-}
-
-function refreshAllCards(){
-  myCards.forEach((_,idx)=>refreshCardBody(idx));
-}
-
-// ─── SLOT SELECTION ───────────────────────────────────────────
-// ─── CARD POOL ────────────────────────────────────────────────
-function renderCardPool(pool){
-  const grid=document.getElementById('poolGrid');
-  const search=parseInt(document.getElementById('cardSearch').value)||0;
-  grid.innerHTML='';
-  pool.forEach(c=>{
-    if(search>0&&c.id!==search) return;
-    const btn=document.createElement('div');
-    btn.className='pool-btn';
-    btn.innerText=`#${c.id}`;
-    const mySlot=myCards.findIndex(mc=>mc&&mc.cardId===c.id);
-    if(mySlot>=0){
-      btn.classList.add('mine');
-      btn.innerText=`#${c.id} ✓`;
-      btn.onclick=()=>cancelCard(mySlot);
-    } else if(c.taken){
-      btn.classList.add('taken');
-    } else {
-      btn.onclick=()=>pickCard(c.id);
-    }
-    grid.appendChild(btn);
-  });
-  updateTray();
-}
-
-function pickCard(cardId){
-  // Find first empty slot
-  const slot=myCards[0]?myCards[1]?null:1:0;
-  if(slot===null){showToast('You already have 2 cards. Cancel one first.','warn');return;}
-  wsSend({type:'selectCard',cardId,slot:slot+1});
-}
-
-function cancelCard(slotIdx){
-  const c=myCards[slotIdx];
-  if(!c) return;
-  wsSend({type:'selectCard',cardId:null,slot:slotIdx+1,cancel:true});
-  myCards[slotIdx]=null;
-  renderCardPool(cardPool);
-}
-
-function updateTray(){
-  [0,1].forEach(i=>{
-    const slot=document.getElementById('traySlot'+i);
-    if(!slot) return;
-    const c=myCards[i];
-    if(c){
-      slot.classList.add('filled');
-      const mini=c.numbers.map((n,idx)=>{
-        const isMarked=c.marked&&c.marked.has(idx);
-        const isFree=idx===12;
-        return `<div class="tray-mini-cell${isFree?' tf':isMarked?' tm':''}">${isFree?'★':n}</div>`;
-      }).join('');
-      slot.innerHTML=`
-        <div class="tray-slot-label">Card ${i+1}</div>
-        <div class="tray-slot-card">#${c.cardId}</div>
-        <div class="tray-mini">${mini}</div>
-        <button class="tray-cancel" onclick="cancelCard(${i})">✕</button>`;
-    } else {
-      slot.classList.remove('filled');
-      slot.innerHTML=`
-        <div class="tray-slot-label">Card ${i+1}${i===1?' <span style="color:#4a2d7a;font-size:9px">(opt)</span>':''}</div>
-        <div class="tray-slot-empty">— tap to pick —</div>`;
-    }
-  });
-}
-
-document.getElementById('cardSearch').addEventListener('input',()=>{
-  const val=parseInt(document.getElementById('cardSearch').value)||0;
-  document.querySelectorAll('.pool-btn').forEach(b=>{
-    const id=parseInt(b.innerText.replace(/[^0-9]/g,''));
-    b.style.display=(val===0||id===val)?'':'none';
-  });
-});
+// ─── WINNER OVERLAY ───────────────────────────────────────────
 function showWinnerOverlay(msg){
   const ov=document.getElementById('winnerOverlay');
   document.getElementById('winnerName').innerText=msg.winners&&msg.winners.length?msg.winners.join(' & '):msg.noWinner?'No Winner':'-';
@@ -1298,47 +1170,115 @@ function showDisqualified(){
 }
 
 // ─── CARD RENDERING ───────────────────────────────────────────
-function renderCard(nums){
-  const body=document.getElementById('cardBody'); body.innerHTML='';
+function renderCard(nums, bodyId, prefix){
+  const body=document.getElementById(bodyId||'cardBody'); body.innerHTML='';
+  const pfx=prefix||'';
   nums.forEach((n,i)=>{
-    const cell=document.createElement('div'); cell.className='bingo-cell'; cell.id='cell'+i;
+    const cell=document.createElement('div'); cell.className='bingo-cell'; cell.id=pfx+'cell'+i;
     if(i===12){cell.classList.add('free','marked');cell.innerText='FREE';}
-    else{cell.innerText=n;cell.addEventListener('click',()=>toggleCell(i,cell));}
+    else{cell.innerText=n;cell.addEventListener('click',()=>toggleCell(i,cell,pfx));}
     body.appendChild(cell);
   });
 }
-function toggleCell(i,cell){
+function renderBothCards(){
+  const wrap=document.getElementById('cardsWrap');
+  const c2=document.getElementById('cardContainer2');
+  if(myCardId2&&myCardNumbers2.length){
+    wrap.classList.add('dual-cards-wrap');
+    c2.style.display='';
+    document.getElementById('cardLabel').innerText=`#${myCardId}`;
+    document.getElementById('cardLabel2').innerText=`#${myCardId2}`;
+    renderCard(myCardNumbers,'cardBody','');
+    renderCard(myCardNumbers2,'cardBody2','b2_');
+  } else {
+    wrap.classList.remove('dual-cards-wrap');
+    c2.style.display='none';
+    document.getElementById('cardLabel').innerText=`Card #${myCardId}`;
+    renderCard(myCardNumbers,'cardBody','');
+  }
+}
+function toggleCell(i,cell,prefix){
   if(i===12) return;
-  if(markedIndices.has(i)){markedIndices.delete(i);cell.classList.remove('marked');}
-  else{markedIndices.add(i);cell.classList.add('marked');}
+  const isCard2=prefix==='b2_';
+  const ms=isCard2?markedIndices2:markedIndices;
+  if(ms.has(i)){ms.delete(i);cell.classList.remove('marked');}
+  else{ms.add(i);cell.classList.add('marked');}
   refreshCardCells();
 }
 function refreshCardCells(){
-  if(!myCardNumbers.length) return;
-  myCardNumbers.forEach((n,i)=>{
-    if(i===12) return;
-    const cell=document.getElementById('cell'+i); if(!cell) return;
-    const tb=document.getElementById('tb'+n); const isCalled=tb&&tb.className.includes(' c');
-    if(markedIndices.has(i)){cell.classList.add('marked');cell.classList.remove('called-not-marked');}
-    else if(isCalled){cell.classList.add('called-not-marked');}
-    else{cell.classList.remove('marked','called-not-marked');}
-  });
+  const refreshOne=(nums,ms,pfx)=>{
+    if(!nums.length) return;
+    nums.forEach((n,i)=>{
+      if(i===12) return;
+      const cell=document.getElementById(pfx+'cell'+i); if(!cell) return;
+      if(ms.has(i)) cell.classList.add('marked');
+      else cell.classList.remove('marked');
+    });
+  };
+  refreshOne(myCardNumbers,markedIndices,'');
+  if(myCardId2) refreshOne(myCardNumbers2,markedIndices2,'b2_');
   const btn=document.getElementById('bingoBtn');
-  if(btn&&!btn.classList.contains('locked')&&markedIndices.size>=5) btn.classList.add('ready');
+  const hasWin=(markedIndices.size>=5)||(myCardId2&&markedIndices2.size>=5);
+  if(btn&&!btn.classList.contains('locked')&&hasWin) btn.classList.add('ready');
+}
+
+// ─── SLOT UI (card selection indicators) ──────────────────────
+function updateSlotUI(){
+  const s1=document.getElementById('slot1'), s2=document.getElementById('slot2');
+  const n1=document.getElementById('slot1Num'), n2=document.getElementById('slot2Num');
+  if(myCardId){s1.classList.add('filled1');n1.innerText=`#${myCardId}`;}
+  else{s1.classList.remove('filled1');n1.innerText='—';}
+  if(myCardId2){s2.classList.add('filled2');n2.innerText=`#${myCardId2}`;}
+  else{s2.classList.remove('filled2');n2.innerText='—';}
+}
+function resetSlotUI(){
+  myCardId=null; myCardId2=null;
+  document.getElementById('slot1').classList.remove('filled1');
+  document.getElementById('slot2').classList.remove('filled2');
+  document.getElementById('slot1Num').innerText='—';
+  document.getElementById('slot2Num').innerText='—';
 }
 
 // ─── CARD POOL ────────────────────────────────────────────────
 function renderCardPool(pool){
-  const grid=document.getElementById('poolGrid'); const search=parseInt(document.getElementById('cardSearch').value)||0;
+  const grid=document.getElementById('poolGrid');
+  const search=parseInt(document.getElementById('cardSearch').value)||0;
   grid.innerHTML='';
   pool.forEach(c=>{
     if(search>0&&c.id!==search) return;
     const btn=document.createElement('div'); btn.className='pool-btn'; btn.innerText=`#${c.id}`;
-    if(c.takenByMe) btn.classList.add('mine');
+    if(c.id===myCardId) btn.classList.add('mine1');
+    else if(c.id===myCardId2) btn.classList.add('mine2');
     else if(c.taken) btn.classList.add('taken');
-    else btn.onclick=()=>wsSend({type:'selectCard',cardId:c.id});
+    else btn.onclick=()=>pickCard(c.id);
+    // Allow deselecting own cards
+    if(c.id===myCardId) btn.onclick=()=>deselectCard(1);
+    if(c.id===myCardId2) btn.onclick=()=>deselectCard(2);
     grid.appendChild(btn);
   });
+}
+function pickCard(cardId){
+  if(!myCardId){
+    // First card
+    wsSend({type:'selectCard',cardId,slot:1});
+    myCardId=cardId; updateSlotUI(); renderCardPool(cardPool);
+  } else if(!myCardId2 && cardId!==myCardId){
+    // Second card
+    wsSend({type:'selectCard',cardId,slot:2});
+    myCardId2=cardId; updateSlotUI(); renderCardPool(cardPool);
+  } else if(myCardId2){
+    showToast('Tap a selected card (purple/orange) to deselect it first','warn');
+  }
+}
+function deselectCard(slot){
+  if(slot===1){
+    if(myCardId) wsSend({type:'deselectCard',cardId:myCardId,slot:1});
+    myCardId=null; myCardNumbers=[];
+  } else {
+    if(myCardId2) wsSend({type:'deselectCard',cardId:myCardId2,slot:2});
+    myCardId2=null; myCardNumbers2=[];
+  }
+  updateSlotUI(); renderCardPool(cardPool);
 }
 document.getElementById('cardSearch').addEventListener('input',()=>{
   const val=parseInt(document.getElementById('cardSearch').value)||0;
@@ -1386,7 +1326,7 @@ function showToast(msg,type=''){
   toastT=setTimeout(()=>t.style.opacity='0',2800);
 }
 
-function leaveRoom(){wsSend({type:'leaveRoom'});myRoomId=null;myCardId=null;}
+function leaveRoom(){wsSend({type:'leaveRoom'});myRoomId=null;myCardId=null;myCardId2=null;}
 
 // ─── AUDIO SYSTEM ────────────────────────────────────────────
 let soundEnabled = true;
