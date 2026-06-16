@@ -572,7 +572,7 @@ if(!ep&&msg.telegramId){
           if(slot===1){
             if(p.cardId) room.takenCardIds.delete(p.cardId);
             if(!p.hasPaid){
-              if(client.balance<room.stake) return send(ws,{type:'error',message:'Insufficient balance.'});
+             if(client.balance<room.stake) return send(ws,{type:'error',message:`Need ${room.stake} ETB. Please deposit.`});
               client.balance-=room.stake; p.hasPaid=true;
               await saveBalance(client.telegramId,client.balance);
               if(db&&client.telegramId){try{await db.logTx(client.telegramId,'stake',-room.stake,client.balance,room.roomId);}catch(e){}}
