@@ -819,24 +819,24 @@ function startTelegramBot(){
     persistent: true
   };
 
-  async function showMainMenu(chatId, tid){
-    const user = await loadUser(String(tid));
-    if(user){
-      bot.sendMessage(chatId,
-        `👋 Hi *${user.name}!*\nWelcome to *Beteseb Bingo*, the ultimate bingo gaming experience! 🎉\n\n💰 Balance: *${parseFloat(user.balance).toFixed(2)} ETB*`,
-        { parse_mode:'Markdown', reply_markup: MAIN_MENU }
-      );
-    } else {
-      pending[tid] = { step:'ask_name' };
-      bot.sendMessage(chatId,
-        `🎱 Welcome to *Beteseb Bingo!*\n\nWhat should we call you?`,
-        { parse_mode:'Markdown', reply_markup: MAIN_MENU }
-      );
-    }
+ async function showMainMenu(chatId, tid, firstName){
+  const user = await loadUser(String(tid));
+  if(user){
+    bot.sendMessage(chatId,
+      `👋 Hi *${user.name}!*\nWelcome to *Beteseb Bingo*, the ultimate bingo gaming experience! 🎉\n\n💰 Balance: *${parseFloat(user.balance).toFixed(2)} ETB*`,
+      { parse_mode:'Markdown', reply_markup: MAIN_MENU }
+    );
+  } else {
+    pending[tid] = { step:'ask_phone', name: firstName || 'Player' };
+    bot.sendMessage(chatId,
+      `👋 Hi *${firstName || 'Player'}!*\nWelcome to *Beteseb Bingo!* 🎱\n\nPlease share your phone number to register:`,
+      { parse_mode:'Markdown', reply_markup:{ keyboard:[[{ text:'📱 Share Phone Number', request_contact:true }]], resize_keyboard:true, one_time_keyboard:true }}
+    );
   }
+}
 
-  bot.onText(/\/start/, msg => showMainMenu(msg.chat.id, msg.from.id));
-  bot.onText(/\/play/,  msg => showMainMenu(msg.chat.id, msg.from.id));
+  bot.onText(/\/start/, msg => showMainMenu(msg.chat.id, msg.from.id, msg.from.first_name));
+bot.onText(/\/play/,  msg => showMainMenu(msg.chat.id, msg.from.id, msg.from.first_name));
 
   bot.onText(/\/balance/, async msg => {
     const u = await loadUser(String(msg.from.id));
@@ -945,11 +945,11 @@ function startTelegramBot(){
     }
   });
 
-  bot.on('contact', async msg => {
+bot.on('contact', async msg => {
     const tid = msg.from.id, p = pending[tid];
     if(!p) return;
     const phone = (msg.contact.phone_number||'').replace(/^\+/,'');
-    const name  = p.name || msg.from.first_name || 'Player';
+    const name  = msg.contact.first_name || msg.from.first_name || 'Player';
     delete pending[tid];
     let balance = 0;
     if(db){
