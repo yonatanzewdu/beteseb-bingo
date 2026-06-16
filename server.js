@@ -412,7 +412,7 @@ async function endGame(room, winners, customMsg, noWinner){
   let winAmount=0, winnerNames=[], winnerTids=[];
 
   if(winners&&winners.length>0){
-    const prizePool=prizePoolOf(room);
+     const prizePool=room.pot;
     // Split prize pool equally among winners
     winAmount=Math.floor(prizePool/winners.length);
     winnerNames=winners.map(w=>w.playerName);
