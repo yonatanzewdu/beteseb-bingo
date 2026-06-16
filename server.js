@@ -391,23 +391,8 @@ function evaluateClaims(room){
     if(card2&&checkWin(card2.numbers,room.calledNumbers,claim.markedIndices2||[])){
       winners.push(p); return;
     }
-  });
+  });}
 
-  room.claimedThisRound=[]; room.claimWindowOpen=false;
-  if(winners.length>0) endGame(room,winners,null,false);
-  else scheduleNextCall(room);
-}
-
-  cheaters.forEach(p=>{
-    p.disqualified=true;
-    send(p.ws,{type:'disqualified',message:'🚫 False BINGO claim — you are disqualified!'});
-  });
-
-  room.claimedThisRound=[]; room.claimWindowOpen=false;
-
-  if(winners.length>0) endGame(room,winners,null,false);
-  else scheduleNextCall(room);
-}
 
 async function endGame(room, winners, customMsg, noWinner){
   if(room.callTimer) clearTimeout(room.callTimer);
