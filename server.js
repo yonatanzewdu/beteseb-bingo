@@ -377,20 +377,26 @@ function callNumber(room){
 }
 
 function evaluateClaims(room){
-  room.claimEvalTimer=null;
-  const winners=[], cheaters=[];
+  const winners=[];
   room.claimedThisRound.forEach(claim=>{
     const p=room.players.find(p=>p.playerId===claim.playerId);
-    if(!p||p.disqualified||(!p.cardId&&!p.cardId2)) return;
+    if(!p||p.disqualified) return;
     // Check card 1
-    const card1=p.cardId?getCard(p.cardId):null;
-    const win1=card1&&checkWin(card1.numbers,room.calledNumbers,claim.markedIndices);
-    // Check card 2
+    const card=getCard(p.cardId);
+    if(card&&checkWin(card.numbers,room.calledNumbers,claim.markedIndices)){
+      winners.push(p); return;
+    }
+    // Check card 2 if they have one
     const card2=p.cardId2?getCard(p.cardId2):null;
-    const win2=card2&&checkWin(card2.numbers,room.calledNumbers,claim.markedIndices2);
-    if(win1||win2) winners.push(p);
-    else cheaters.push(p);
+    if(card2&&checkWin(card2.numbers,room.calledNumbers,claim.markedIndices2||[])){
+      winners.push(p); return;
+    }
   });
+
+  room.claimedThisRound=[]; room.claimWindowOpen=false;
+  if(winners.length>0) endGame(room,winners,null,false);
+  else scheduleNextCall(room);
+}
 
   cheaters.forEach(p=>{
     p.disqualified=true;
