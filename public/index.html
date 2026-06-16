@@ -1262,13 +1262,11 @@ function renderCardPool(pool){
 }
 function pickCard(cardId){
   if(!myCardId){
-    // First card
+    // First card — wait for server to confirm before updating UI
     wsSend({type:'selectCard',cardId,slot:1});
-    myCardId=cardId; updateSlotUI(); renderCardPool(cardPool);
   } else if(!myCardId2 && cardId!==myCardId){
-    // Second card
+    // Second card — wait for server to confirm before updating UI
     wsSend({type:'selectCard',cardId,slot:2});
-    myCardId2=cardId; updateSlotUI(); renderCardPool(cardPool);
   } else if(myCardId2){
     showToast('Tap a selected card (purple/orange) to deselect it first','warn');
   }
