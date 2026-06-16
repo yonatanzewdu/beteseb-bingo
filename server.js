@@ -377,22 +377,31 @@ function callNumber(room){
 }
 
 function evaluateClaims(room){
-  const winners=[];
+  room.claimEvalTimer=null;
+  const winners=[], cheaters=[];
   room.claimedThisRound.forEach(claim=>{
     const p=room.players.find(p=>p.playerId===claim.playerId);
-    if(!p||p.disqualified) return;
+    if(!p||p.disqualified||(!p.cardId&&!p.cardId2)) return;
     // Check card 1
-    const card=getCard(p.cardId);
-    if(card&&checkWin(card.numbers,room.calledNumbers,claim.markedIndices)){
-      winners.push(p); return;
-    }
-    // Check card 2 if they have one
+    const card1=p.cardId?getCard(p.cardId):null;
+    const win1=card1&&checkWin(card1.numbers,room.calledNumbers,claim.markedIndices);
+    // Check card 2
     const card2=p.cardId2?getCard(p.cardId2):null;
-    if(card2&&checkWin(card2.numbers,room.calledNumbers,claim.markedIndices2||[])){
-      winners.push(p); return;
-    }
-  });}
+    const win2=card2&&checkWin(card2.numbers,room.calledNumbers,claim.markedIndices2);
+    if(win1||win2) winners.push(p);
+    else cheaters.push(p);
+  });
 
+  cheaters.forEach(p=>{
+    p.disqualified=true;
+    send(p.ws,{type:'disqualified',message:'🚫 False BINGO claim — you are disqualified!'});
+  });
+
+  room.claimedThisRound=[]; room.claimWindowOpen=false;
+
+  if(winners.length>0) endGame(room,winners,null,false);
+  else scheduleNextCall(room);
+}
 
 async function endGame(room, winners, customMsg, noWinner){
   if(room.callTimer) clearTimeout(room.callTimer);
@@ -617,39 +626,24 @@ if(!ep&&msg.telegramId){
           broadcastCardPool(room); break;
         }
         case 'claimBingo':{
-  if(!client.roomId) return;
-  const room=rooms[client.roomId];
-  if(!room||room.status!=='playing') return;
-  const p=room.players.find(p=>p.playerId===client.playerId);
-  if(!p||p.disqualified||(!p.cardId&&!p.cardId2)) return;
-  if(!room.claimWindowOpen) return send(ws,{type:'claimTooLate',message:'Too late!'});
-
-  // Check this player immediately
-  const card=getCard(p.cardId);
-  const card2=p.cardId2?getCard(p.cardId2):null;
-  const marked=msg.markedIndices||[];
-  const marked2=msg.markedIndices2||[];
-
-  const validCard1=card&&checkWin(card.numbers,room.calledNumbers,marked);
-  const validCard2=card2&&checkWin(card2.numbers,room.calledNumbers,marked2);
-
-  if(validCard1||validCard2){
-    // Valid BINGO — stop timer and end game
-    if(room.callTimer) clearTimeout(room.callTimer);
-    if(room.claimEvalTimer) clearTimeout(room.claimEvalTimer);
-    if(!room.claimedThisRound.find(c=>c.playerId===client.playerId))
-      room.claimedThisRound.push({playerId:client.playerId,markedIndices:marked,cardId2:msg.cardId2||null,markedIndices2:marked2});
-    evaluateClaims(room);
-  } else {
-    // False claim — disqualify only this player, game continues uninterrupted
-    p.disqualified=true;
-    send(ws,{type:'disqualified',message:'🚫 False BINGO claim — you are disqualified!'});
-    if(db&&client.telegramId&&room.dbGameId){
-      try{await db.disqualifyParticipant(room.dbGameId,client.telegramId);}catch(e){}
-    }
-  }
-  break;
-}
+          if(!client.roomId) return;
+          const room=rooms[client.roomId];
+          if(!room||room.status!=='playing') return;
+          const p=room.players.find(p=>p.playerId===client.playerId);
+          if(!p||p.disqualified||(!p.cardId&&!p.cardId2)) return;
+          if(!room.claimWindowOpen) return send(ws,{type:'claimTooLate',message:'Too late!'});
+          if(!room.claimedThisRound.find(c=>c.playerId===client.playerId))
+            room.claimedThisRound.push({
+              playerId:client.playerId,
+              markedIndices:msg.markedIndices||[],
+              cardId2:msg.cardId2||null,
+              markedIndices2:msg.markedIndices2||[]
+            });
+          if(room.callTimer) clearTimeout(room.callTimer);
+          if(room.claimEvalTimer) clearTimeout(room.claimEvalTimer);
+          room.claimEvalTimer=setTimeout(()=>evaluateClaims(room), CLAIM_COLLECT_MS);
+          break;
+        }
         case 'leaveRoom':
           leaveRoom(client); send(ws,{type:'leftRoom',balance:client.balance}); break;
 
@@ -810,8 +804,7 @@ function startTelegramBot(){
   const TOKEN=process.env.BOT_TOKEN, GAME_URL=process.env.GAME_URL||'https://beteseb-bingo.onrender.com';
   if(!TOKEN){console.log('ℹ️ No BOT_TOKEN');return;}
   let Bot; try{Bot=require('node-telegram-bot-api');}catch(e){console.log('ℹ️ Bot lib missing');return;}
- const bot=new Bot(TOKEN,{polling:{autoStart:false}}), pending={};
-bot.stopPolling().then(()=>bot.startPolling()).catch(()=>bot.startPolling());
+  const bot=new Bot(TOKEN,{polling:true}), pending={};
 
   const MAIN_MENU = {
     keyboard: [
