@@ -650,7 +650,7 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 
 <script>
 // ─── STATE ────────────────────────────────────────────────────
-let ws, myPlayerId, myName='', myRoomId=null, myStakeId=null;
+let ws, myPlayerId, myName='', myRoomId=localStorage.getItem('roomId')||null, myStakeId=null;
 let myCardId=null, myCardNumbers=[], markedIndices=new Set(), currentBalance=0;
 let myCardId2=null, myCardNumbers2=[], markedIndices2=new Set();
 let claimWindowOpen=false, claimBarAnim=null, prevLastCalled=null;
@@ -692,9 +692,8 @@ function connect(){
   const proto=location.protocol==='https:'?'wss://':'ws://';
   ws=new WebSocket(proto+location.host);
   ws.onopen=()=>{
-    document.getElementById('connDot').classList.add('on');
-    if(myRoomId) wsSend({type:'reconnect',roomId:myRoomId});
-  };
+  document.getElementById('connDot').classList.add('on');
+};
   ws.onclose=()=>{document.getElementById('connDot').classList.remove('on');setTimeout(connect,3000);};
   ws.onerror=()=>{};
   ws.onmessage=e=>{try{handle(JSON.parse(e.data));}catch(err){console.error(err);}};
@@ -722,23 +721,33 @@ if(pageParam === 'withdraw') setTimeout(()=>{ navGo('screenWallet','navWallet');
       break;
 
     case 'authSuccess':
-      myName=msg.playerName||'Player';
-      setBalance(msg.balance||0);
-      isAdmin=msg.isAdmin||false;
-      adminToken=telegramId||'';
-      document.getElementById('welcomeName').innerText=myName||'Player';
-      document.getElementById('welcomeStatus').innerText=msg.isRegistered?'Welcome back! 👋':'Registered!';
-      // Show/hide admin nav
-      if(isAdmin){
-        document.getElementById('navAdmin').style.display='flex';
-        document.getElementById('navCards').style.display='none';
+  myName=msg.playerName||'Player';
+  setBalance(msg.balance||0);
+  isAdmin=msg.isAdmin||false;
+  adminToken=telegramId||'';
+  document.getElementById('welcomeName').innerText=myName||'Player';
+  document.getElementById('welcomeStatus').innerText=msg.isRegistered?'Welcome back! 👋':'Registered!';
+  if(isAdmin){
+    document.getElementById('navAdmin').style.display='flex';
+    document.getElementById('navCards').style.display='none';
+  }
+  // Try to reconnect to active game after auth
+  if(myRoomId && telegramId){
+    wsSend({type:'reconnect',roomId:myRoomId,telegramId:telegramId});
+    setTimeout(()=>{
+      if(document.getElementById('screenLoading').classList.contains('active')){
+        goScreen('screenLobby');
       }
-      goScreen('screenLobby');
-      break;
+    },2000);
+  } else {
+    goScreen('screenLobby');
+  }
+  break;
 
     case 'lobbyUpdate': renderStakes(msg.stakes); break;
 
     case 'joinedRoom':
+      localStorage.setItem('roomId', msg.roomId);
       myRoomId=msg.roomId; myStakeId=msg.stakeId; myCardId=null; myCardId2=null;
       markedIndices=new Set([12]); markedIndices2=new Set([12]); setBalance(msg.balance);
       resetSlotUI();
@@ -826,7 +835,7 @@ if(pageParam === 'withdraw') setTimeout(()=>{ navGo('screenWallet','navWallet');
     case 'claimTooLate': showToast('⏰ Too late! Claim before next number.','warn'); break;
     case 'disqualified': showDisqualified(); break;
 
-    case 'gameOver': showWinnerOverlay(msg); break;
+    case 'gameOver': localStorage.removeItem('roomId'); showWinnerOverlay(msg); break;
 
     case 'backToCardSelection':
       myRoomId=msg.roomId; myCardId=null; myCardId2=null;
@@ -839,7 +848,7 @@ if(pageParam === 'withdraw') setTimeout(()=>{ navGo('screenWallet','navWallet');
 
     case 'balanceUpdate': setBalance(msg.balance); break;
 
-    case 'leftRoom': myRoomId=null; myCardId=null; myCardId2=null; navGo('screenLobby','navHome'); break;
+    case 'leftRoom': localStorage.removeItem('roomId'); myRoomId=null; myCardId=null; myCardId2=null; navGo('screenLobby','navHome'); break;
 
     case 'depositSubmitted':
       showWalletMsg('depositMsg', msg.message, 'success');
