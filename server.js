@@ -568,14 +568,32 @@ if(!ep&&msg.telegramId){
           if(!client.roomId) break;
           const room=rooms[client.roomId];
           if(!room||(room.status!=='waiting'&&room.status!=='countdown')) break;
-          const cardId=parseInt(msg.cardId);
           const slot=parseInt(msg.slot)||1; // 1 or 2
-          if(cardId<1||cardId>TOTAL_CARDS) break;
+          const slotIdx=slot-1;
           const p=room.players.find(p=>p.playerId===client.playerId);
           if(!p) break;
 
-          // Slot index (0-based)
-          const slotIdx=slot-1; // 0 or 1
+          // Handle cancel: release this slot's card and refund the stake
+          if(msg.cancel){
+            const oldCard=p.cardIds[slotIdx];
+            if(oldCard){
+              room.takenCardIds.delete(oldCard);
+              p.cardIds[slotIdx]=null;
+              // Refund if this slot was paid for
+              if(p.cardsPaid>slotIdx){
+                client.balance+=room.stake; p.cardsPaid--;
+                await saveBalance(client.telegramId,client.balance);
+                if(db&&client.telegramId){try{await db.logTx(client.telegramId,'refund',room.stake,client.balance,room.roomId);}catch(e){}}
+                send(ws,{type:'balanceUpdate',balance:client.balance});
+              }
+              p.hasPaid=p.cardIds.filter(Boolean).length>0;
+              broadcastCardPool(room);
+            }
+            break;
+          }
+
+          const cardId=parseInt(msg.cardId);
+          if(cardId<1||cardId>TOTAL_CARDS) break;
 
           // Release the old card in this slot if any
           if(p.cardIds[slotIdx]) room.takenCardIds.delete(p.cardIds[slotIdx]);
