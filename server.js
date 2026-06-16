@@ -532,11 +532,10 @@ if(!ep&&msg.telegramId){
   }
   break;
 }
-        case 'joinRoom':{
-          const sc=STAKES.find(s=>s.id===msg.stakeId);
-          if(!sc) return send(ws,{type:'error',message:'Invalid stake.'});
-          if(!client.playerName) return send(ws,{type:'error',message:'Please set your name first.'});
-          leaveRoom(client);
+       case 'joinRoom':{
+              const sc=STAKES.find(s=>s.id===msg.stakeId);
+             if(!sc) return send(ws,{type:'error',message:'Invalid stake.'});
+             leaveRoom(client);
 
           // ── If a game for this stake is already in progress, join as a spectator ──
           const liveRoom=Object.values(rooms).find(r=>r.stakeId===msg.stakeId&&r.status==='playing');
