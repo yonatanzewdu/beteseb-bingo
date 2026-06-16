@@ -569,16 +569,16 @@ if(!ep&&msg.telegramId){
           const p=room.players.find(p=>p.playerId===client.playerId);
           if(!p) break;
           // Charge only on first card pick; second card charges at game start
-          if(slot===1){
-            if(p.cardId) room.takenCardIds.delete(p.cardId);
-            if(!p.hasPaid){
-             if(client.balance<room.stake) return send(ws,{type:'error',message:`Need ${room.stake} ETB. Please deposit.`});
-              client.balance-=room.stake; p.hasPaid=true;
-              await saveBalance(client.telegramId,client.balance);
-              if(db&&client.telegramId){try{await db.logTx(client.telegramId,'stake',-room.stake,client.balance,room.roomId);}catch(e){}}
-              send(ws,{type:'balanceUpdate',balance:client.balance});
-            }
-            p.cardId=cardId; room.takenCardIds.add(cardId);
+    if(slot===1){
+  if(p.cardId) room.takenCardIds.delete(p.cardId);
+  if(client.balance<room.stake) return send(ws,{type:'error',message:`Need ${room.stake} ETB. Please deposit.`});
+  if(!p.hasPaid){
+    client.balance-=room.stake; p.hasPaid=true;
+    await saveBalance(client.telegramId,client.balance);
+    if(db&&client.telegramId){try{await db.logTx(client.telegramId,'stake',-room.stake,client.balance,room.roomId);}catch(e){}}
+    send(ws,{type:'balanceUpdate',balance:client.balance});
+  }
+  p.cardId=cardId; room.takenCardIds.add(cardId);
             const card=getCard(cardId);
             send(ws,{type:'cardSelected',cardId,cardNumbers:card.numbers,slot:1});
           } else {
