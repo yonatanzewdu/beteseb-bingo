@@ -825,7 +825,8 @@ function startTelegramBot(){
   const TOKEN=process.env.BOT_TOKEN, GAME_URL=process.env.GAME_URL||'https://beteseb-bingo.onrender.com';
   if(!TOKEN){console.log('ℹ️ No BOT_TOKEN');return;}
   let Bot; try{Bot=require('node-telegram-bot-api');}catch(e){console.log('ℹ️ Bot lib missing');return;}
-  const bot=new Bot(TOKEN,{polling:true}), pending={};
+ const bot=new Bot(TOKEN,{polling:{autoStart:false}}), pending={};
+bot.stopPolling().then(()=>bot.startPolling()).catch(()=>bot.startPolling());
 
   const MAIN_MENU = {
     keyboard: [
