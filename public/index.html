@@ -46,11 +46,18 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 .stake-info{font-size:12px;color:var(--gray)}
 
 /* TWO CARD SELECTION */
-.slot-tabs{display:flex;gap:8px;margin-bottom:10px}
-.slot-tab{flex:1;padding:9px;border-radius:8px;border:1px solid #4a2d7a;background:var(--card);color:var(--gray);font-weight:700;font-size:13px;cursor:pointer;text-align:center;transition:all .2s}
-.slot-tab.active{background:var(--purple);color:#fff;border-color:var(--purple)}
-.slot-tab.selected{border-color:var(--green);color:var(--green)}
-.slot-tab.selected.active{background:var(--green);color:#fff;border-color:var(--green)}
+/* Card selection bottom tray */
+.card-tray{position:sticky;bottom:68px;left:0;right:0;background:var(--panel);border-top:2px solid #3c2463;padding:10px 12px;display:flex;gap:8px;z-index:50;margin:0 -15px}
+.tray-slot{flex:1;background:var(--card);border:2px dashed #4a2d7a;border-radius:10px;padding:8px 6px;text-align:center;position:relative;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:border-color .2s}
+.tray-slot.filled{border-style:solid;border-color:var(--green);background:rgba(34,197,94,.08)}
+.tray-slot-label{font-size:10px;color:var(--gray);text-transform:uppercase;font-weight:700;margin-bottom:3px}
+.tray-slot-card{font-family:'Orbitron',sans-serif;font-size:15px;font-weight:900;color:var(--green)}
+.tray-slot-empty{font-size:11px;color:#4a2d7a}
+.tray-cancel{position:absolute;top:3px;right:5px;background:var(--red);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;line-height:1}
+.tray-mini{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;margin-top:4px;width:100%}
+.tray-mini-cell{font-size:7px;background:#1a0a3e;color:#a78bfa;text-align:center;padding:2px 0;border-radius:2px;font-weight:700}
+.tray-mini-cell.tm{background:var(--purple);color:#fff}
+.tray-mini-cell.tf{background:var(--purple);color:#fff;font-size:6px}
 
 /* TWO CARDS GAME VIEW */
 .cards-game-wrap{display:flex;flex-direction:column;gap:14px}
@@ -239,21 +246,24 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
     <h2 class="screen-title" style="margin:0">CHOOSE YOUR CARDS</h2>
     <div class="cd-countdown" id="cdCountdown">Waiting...</div>
   </div>
-  <!-- Slot selector tabs -->
-  <div class="slot-tabs">
-    <div class="slot-tab active" id="slotTab1" onclick="setActiveSlot(1)">
-      Card 1 <span id="slot1Label"></span>
-    </div>
-    <div class="slot-tab" id="slotTab2" onclick="setActiveSlot(2)">
-      Card 2 <span id="slot2Label" style="color:var(--gray);font-size:11px">(optional)</span>
-    </div>
-  </div>
-  <div style="font-size:12px;color:var(--gray);margin-bottom:8px" id="slotHint">
-    Select a card for Card 1. Each card costs 1 stake.
+  <div style="font-size:12px;color:var(--gray);margin-bottom:8px">
+    Tap a card to select it. You can pick up to <strong style="color:#fff">2 cards</strong>. Tap a selected card to cancel it.
   </div>
   <input class="card-search" type="number" id="cardSearch" placeholder="Search card # (1–400)..." min="1" max="400">
   <div id="poolGrid" class="pool-grid"></div>
   <button class="leave-btn" onclick="leaveRoom()">← Leave Room</button>
+
+  <!-- Bottom tray showing selected cards with mini preview -->
+  <div class="card-tray">
+    <div class="tray-slot" id="traySlot0">
+      <div class="tray-slot-label">Card 1</div>
+      <div class="tray-slot-empty">— tap to pick —</div>
+    </div>
+    <div class="tray-slot" id="traySlot1">
+      <div class="tray-slot-label">Card 2 <span style="color:#4a2d7a;font-size:9px">(optional)</span></div>
+      <div class="tray-slot-empty">— tap to pick —</div>
+    </div>
+  </div>
 </div>
 
 <div id="screenGame" class="screen">
@@ -716,7 +726,7 @@ function handle(msg){
       myCards=[null,null]; markedIndices=[new Set([12]),new Set([12])];
       activeSlot=1;
       setBalance(msg.balance);
-      updateSlotTabs();
+      updateTray();
       if(msg.status==='playing'){
         // Late join — spectating message follows
       } else {
@@ -728,9 +738,8 @@ function handle(msg){
       cardPool=msg.pool; renderCardPool(msg.pool); break;
 
     case 'cardSelected':
-      // slot is 1-based
       myCards[msg.slot-1]={cardId:msg.cardId,numbers:msg.cardNumbers,marked:new Set([12])};
-      updateSlotTabs();
+      renderCardPool(cardPool);
       break;
 
     case 'countdown':
@@ -808,7 +817,7 @@ function handle(msg){
       claimWindowOpen=false; hideWinnerOverlay(); if(msg.balance!==undefined)setBalance(msg.balance);
       resetTrackerBoard(); setBingoBtn('idle');
       document.getElementById('cdCountdown').innerText='Waiting...';
-      updateSlotTabs();
+      updateTray();
       navGo('screenCards','navCards'); break;
 
     case 'balanceUpdate': setBalance(msg.balance); break;
@@ -1184,47 +1193,72 @@ function refreshAllCards(){
 }
 
 // ─── SLOT SELECTION ───────────────────────────────────────────
-function setActiveSlot(slot){
-  activeSlot=slot;
-  updateSlotTabs();
-  document.getElementById('slotHint').innerText=
-    slot===1 ? 'Select a card for Card 1. Each card costs 1 stake.'
-             : 'Select a card for Card 2 (optional). Costs 1 additional stake.';
-  if(cardPool.length) renderCardPool(cardPool);
-}
-
-function updateSlotTabs(){
-  [1,2].forEach(s=>{
-    const tab=document.getElementById('slotTab'+s);
-    if(!tab) return;
-    const c=myCards[s-1];
-    const label=tab.querySelector('span');
-    tab.classList.toggle('active',activeSlot===s);
-    tab.classList.toggle('selected',!!c);
-    if(label) label.innerText=c?` ✓ #${c.cardId}`:(s===2?' (optional)':'');
-  });
-}
-
 // ─── CARD POOL ────────────────────────────────────────────────
 function renderCardPool(pool){
-  const grid=document.getElementById('poolGrid'); const search=parseInt(document.getElementById('cardSearch').value)||0;
+  const grid=document.getElementById('poolGrid');
+  const search=parseInt(document.getElementById('cardSearch').value)||0;
   grid.innerHTML='';
   pool.forEach(c=>{
     if(search>0&&c.id!==search) return;
-    const btn=document.createElement('div'); btn.className='pool-btn'; btn.innerText=`#${c.id}`;
-    if(c.mySlot>0){
+    const btn=document.createElement('div');
+    btn.className='pool-btn';
+    btn.innerText=`#${c.id}`;
+    const mySlot=myCards.findIndex(mc=>mc&&mc.cardId===c.id);
+    if(mySlot>=0){
       btn.classList.add('mine');
-      btn.innerText=`#${c.id} ✓${c.mySlot}`;
-      // Clicking own card deselects it and switches to that slot
-      btn.onclick=()=>setActiveSlot(c.mySlot);
+      btn.innerText=`#${c.id} ✓`;
+      btn.onclick=()=>cancelCard(mySlot);
     } else if(c.taken){
       btn.classList.add('taken');
     } else {
-      btn.onclick=()=>wsSend({type:'selectCard',cardId:c.id,slot:activeSlot});
+      btn.onclick=()=>pickCard(c.id);
     }
     grid.appendChild(btn);
   });
+  updateTray();
 }
+
+function pickCard(cardId){
+  // Find first empty slot
+  const slot=myCards[0]?myCards[1]?null:1:0;
+  if(slot===null){showToast('You already have 2 cards. Cancel one first.','warn');return;}
+  wsSend({type:'selectCard',cardId,slot:slot+1});
+}
+
+function cancelCard(slotIdx){
+  const c=myCards[slotIdx];
+  if(!c) return;
+  wsSend({type:'selectCard',cardId:null,slot:slotIdx+1,cancel:true});
+  myCards[slotIdx]=null;
+  renderCardPool(cardPool);
+}
+
+function updateTray(){
+  [0,1].forEach(i=>{
+    const slot=document.getElementById('traySlot'+i);
+    if(!slot) return;
+    const c=myCards[i];
+    if(c){
+      slot.classList.add('filled');
+      const mini=c.numbers.map((n,idx)=>{
+        const isMarked=c.marked&&c.marked.has(idx);
+        const isFree=idx===12;
+        return `<div class="tray-mini-cell${isFree?' tf':isMarked?' tm':''}">${isFree?'★':n}</div>`;
+      }).join('');
+      slot.innerHTML=`
+        <div class="tray-slot-label">Card ${i+1}</div>
+        <div class="tray-slot-card">#${c.cardId}</div>
+        <div class="tray-mini">${mini}</div>
+        <button class="tray-cancel" onclick="cancelCard(${i})">✕</button>`;
+    } else {
+      slot.classList.remove('filled');
+      slot.innerHTML=`
+        <div class="tray-slot-label">Card ${i+1}${i===1?' <span style="color:#4a2d7a;font-size:9px">(opt)</span>':''}</div>
+        <div class="tray-slot-empty">— tap to pick —</div>`;
+    }
+  });
+}
+
 document.getElementById('cardSearch').addEventListener('input',()=>{
   const val=parseInt(document.getElementById('cardSearch').value)||0;
   document.querySelectorAll('.pool-btn').forEach(b=>{
