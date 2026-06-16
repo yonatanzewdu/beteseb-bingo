@@ -800,51 +800,171 @@ server.listen(PORT,()=>{
 });
 
 // ─── BOT ─────────────────────────────────────────────────────
+// ─── BOT ─────────────────────────────────────────────────────
 function startTelegramBot(){
   const TOKEN=process.env.BOT_TOKEN, GAME_URL=process.env.GAME_URL||'https://beteseb-bingo.onrender.com';
   if(!TOKEN){console.log('ℹ️ No BOT_TOKEN');return;}
   let Bot; try{Bot=require('node-telegram-bot-api');}catch(e){console.log('ℹ️ Bot lib missing');return;}
   const bot=new Bot(TOKEN,{polling:true}), pending={};
 
-  async function showPlay(chatId,tid){
-    const user=await loadUser(String(tid));
+  const MAIN_MENU = {
+    keyboard: [
+      [{ text: '🎮 Play Now' }, { text: '📝 Register' }],
+      [{ text: '💰 Deposit' }, { text: '💸 Withdraw' }],
+      [{ text: '🔀 Transfer' }, { text: '🎁 Invite Friends' }],
+      [{ text: '🎯 Game Patterns' }, { text: '📖 Instructions' }],
+      [{ text: '🆘 24H Support 1' }, { text: '🆘 Support 2' }]
+    ],
+    resize_keyboard: true,
+    persistent: true
+  };
+
+  async function showMainMenu(chatId, tid){
+    const user = await loadUser(String(tid));
     if(user){
-      bot.sendMessage(chatId,`👋 Welcome back *${user.name}*!\n💰 Balance: *${user.balance} ETB*`,
-        {parse_mode:'Markdown',reply_markup:{inline_keyboard:[[{text:'🎮 Play Beteseb Bingo',web_app:{url:`${GAME_URL}?tid=${tid}`}}]]}});
+      bot.sendMessage(chatId,
+        `👋 Hi *${user.name}!*\nWelcome to *Beteseb Bingo*, the ultimate bingo gaming experience! 🎉\n\n💰 Balance: *${parseFloat(user.balance).toFixed(2)} ETB*`,
+        { parse_mode:'Markdown', reply_markup: MAIN_MENU }
+      );
     } else {
-      pending[tid]={step:'ask_name'};
-      bot.sendMessage(chatId,'🎱 Welcome to *Beteseb Bingo!*\n\nWhat should we call you?',{parse_mode:'Markdown'});
+      pending[tid] = { step:'ask_name' };
+      bot.sendMessage(chatId,
+        `🎱 Welcome to *Beteseb Bingo!*\n\nWhat should we call you?`,
+        { parse_mode:'Markdown', reply_markup: MAIN_MENU }
+      );
     }
   }
 
-  bot.onText(/\/start/,msg=>showPlay(msg.chat.id,msg.from.id));
-  bot.onText(/\/play/, msg=>showPlay(msg.chat.id,msg.from.id));
-  bot.onText(/\/balance/,async msg=>{
-    const u=await loadUser(String(msg.from.id));
-    bot.sendMessage(msg.chat.id,u?`💰 Balance: *${u.balance} ETB*`:'Use /start to register.',{parse_mode:'Markdown'});
+  bot.onText(/\/start/, msg => showMainMenu(msg.chat.id, msg.from.id));
+  bot.onText(/\/play/,  msg => showMainMenu(msg.chat.id, msg.from.id));
+
+  bot.onText(/\/balance/, async msg => {
+    const u = await loadUser(String(msg.from.id));
+    bot.sendMessage(msg.chat.id,
+      u ? `💰 Balance: *${parseFloat(u.balance).toFixed(2)} ETB*` : 'Use /start to register.',
+      { parse_mode:'Markdown', reply_markup: MAIN_MENU }
+    );
   });
 
-  bot.on('message',msg=>{
-    const tid=msg.from.id, p=pending[tid];
-    if(!p||!msg.text||msg.text.startsWith('/')) return;
-    if(p.step==='ask_name'){
-      p.name=msg.text.trim().substring(0,30); p.step='ask_phone';
-      bot.sendMessage(msg.chat.id,`Nice to meet you *${p.name}*! 👋\n\nShare your phone number:`,
-        {parse_mode:'Markdown',reply_markup:{keyboard:[[{text:'📱 Share Phone Number',request_contact:true}]],resize_keyboard:true,one_time_keyboard:true}});
+  bot.on('message', async msg => {
+    const tid = msg.from.id;
+    const text = msg.text || '';
+
+    // ── Handle registration flow ──
+    const p = pending[tid];
+    if(p && !text.startsWith('/')){
+      if(p.step === 'ask_name'){
+        p.name = text.trim().substring(0,30);
+        p.step = 'ask_phone';
+        bot.sendMessage(msg.chat.id,
+          `Nice to meet you *${p.name}!* 👋\n\nPlease Share Your Phone Number:`,
+          { parse_mode:'Markdown', reply_markup:{ keyboard:[[{ text:'📱 Share Phone Number', request_contact:true }]], resize_keyboard:true, one_time_keyboard:true }}
+        );
+      }
+      return;
+    }
+
+    // ── Handle menu button presses ──
+    const user = await loadUser(String(tid));
+
+    if(text === '🎮 Play Now'){
+      if(!user) return bot.sendMessage(msg.chat.id, '⚠️ Please register first by pressing 📝 Register.', { reply_markup: MAIN_MENU });
+      bot.sendMessage(msg.chat.id, `🎮 Tap below to open the game:`, {
+        reply_markup:{
+          inline_keyboard:[[{ text:'🎮 Play Beteseb Bingo', web_app:{ url:`${GAME_URL}?tid=${tid}` }}]]
+        }
+      });
+    }
+
+    else if(text === '📝 Register'){
+      if(user) return bot.sendMessage(msg.chat.id, `✅ You are already registered as *${user.name}!*\n💰 Balance: *${parseFloat(user.balance).toFixed(2)} ETB*`, { parse_mode:'Markdown', reply_markup: MAIN_MENU });
+      pending[tid] = { step:'ask_name' };
+      bot.sendMessage(msg.chat.id, '📝 Let\'s get you registered!\n\nWhat should we call you?', { reply_markup: MAIN_MENU });
+    }
+
+    else if(text === '💰 Deposit'){
+      if(!user) return bot.sendMessage(msg.chat.id, '⚠️ Please register first.', { reply_markup: MAIN_MENU });
+      bot.sendMessage(msg.chat.id, `💰 Tap below to deposit:`, {
+        reply_markup:{
+          inline_keyboard:[[{ text:'💰 Deposit Now', web_app:{ url:`${GAME_URL}?tid=${tid}&page=deposit` }}]]
+        }
+      });
+    }
+
+    else if(text === '💸 Withdraw'){
+      if(!user) return bot.sendMessage(msg.chat.id, '⚠️ Please register first.', { reply_markup: MAIN_MENU });
+      bot.sendMessage(msg.chat.id, `💸 Tap below to withdraw:`, {
+        reply_markup:{
+          inline_keyboard:[[{ text:'💸 Withdraw Now', web_app:{ url:`${GAME_URL}?tid=${tid}&page=withdraw` }}]]
+        }
+      });
+    }
+
+    else if(text === '🔀 Transfer'){
+      bot.sendMessage(msg.chat.id,
+        `🔀 *Transfer*\n\nPlayer-to-player transfer is coming soon! Stay tuned 🚀`,
+        { parse_mode:'Markdown', reply_markup: MAIN_MENU }
+      );
+    }
+
+    else if(text === '🎁 Invite Friends'){
+      const me = await bot.getMe();
+      const link = `https://t.me/${me.username}?start=ref_${tid}`;
+      bot.sendMessage(msg.chat.id,
+        `🎁 *Invite Friends & Earn!*\n\nShare your link:\n${link}\n\n_Coming soon: earn bonus ETB for every friend who joins!_`,
+        { parse_mode:'Markdown', reply_markup: MAIN_MENU }
+      );
+    }
+
+    else if(text === '🎯 Game Patterns'){
+      bot.sendMessage(msg.chat.id,
+        `🎯 *Winning Patterns*\n\n✅ Any complete *row* (horizontal)\n✅ Any complete *column* (vertical)\n✅ Either *diagonal*\n✅ *4 corners*\n\nThe FREE space in the center counts automatically!\n\nPress BINGO as soon as you complete a pattern! 🎉`,
+        { parse_mode:'Markdown', reply_markup: MAIN_MENU }
+      );
+    }
+
+    else if(text === '📖 Instructions'){
+      bot.sendMessage(msg.chat.id,
+        `📖 *How to Play Beteseb Bingo*\n\n1️⃣ Deposit ETB into your wallet\n2️⃣ Choose a stake tier (10–100 ETB)\n3️⃣ Pick your lucky card (1–400)\n4️⃣ Numbers are called every 5 seconds\n5️⃣ Mark numbers on your card\n6️⃣ Complete a pattern and press *BINGO!* 🎉\n\n🏆 Winner gets *80%* of the total pot\n🏠 House takes *20%*\n⚠️ False BINGO = disqualification!`,
+        { parse_mode:'Markdown', reply_markup: MAIN_MENU }
+      );
+    }
+
+    else if(text === '🆘 24H Support 1'){
+      bot.sendMessage(msg.chat.id,
+        `🆘 *24H Support*\n\nContact us anytime:\n👤 @YourSupportUsername1\n\nWe typically respond within a few minutes.`,
+        { parse_mode:'Markdown', reply_markup: MAIN_MENU }
+      );
+    }
+
+    else if(text === '🆘 Support 2'){
+      bot.sendMessage(msg.chat.id,
+        `🆘 *Support 2*\n\nAlternate support contact:\n👤 @YourSupportUsername2`,
+        { parse_mode:'Markdown', reply_markup: MAIN_MENU }
+      );
     }
   });
 
-  bot.on('contact',async msg=>{
-    const tid=msg.from.id, p=pending[tid];
+  bot.on('contact', async msg => {
+    const tid = msg.from.id, p = pending[tid];
     if(!p) return;
-    const phone=(msg.contact.phone_number||'').replace(/^\+/,''), name=p.name||msg.from.first_name||'Player';
+    const phone = (msg.contact.phone_number||'').replace(/^\+/,'');
+    const name  = p.name || msg.from.first_name || 'Player';
     delete pending[tid];
-    let balance=0;
-    if(db){try{const u=await db.createUser(String(tid),name,phone);balance=parseFloat(u.balance);userCache[String(tid)]={name,phone,balance,isAdmin:isAdminPhone(phone)};}catch(e){console.error('createUser error:',e.message);}}
-    else{userCache[String(tid)]={name,phone,balance:0,isAdmin:isAdminPhone(phone)};}
+    let balance = 0;
+    if(db){
+      try{
+        const u = await db.createUser(String(tid), name, phone);
+        balance = parseFloat(u.balance);
+        userCache[String(tid)] = { name, phone, balance, isAdmin: isAdminPhone(phone) };
+      } catch(e){ console.error('createUser error:', e.message); }
+    } else {
+      userCache[String(tid)] = { name, phone, balance:0, isAdmin: isAdminPhone(phone) };
+    }
     bot.sendMessage(msg.chat.id,
-      `✅ *Registered!*\nName: *${name}*\nPhone: ${phone}\nBalance: *${balance} ETB*\n\nDeposit ETB to start playing!`,
-      {parse_mode:'Markdown',reply_markup:{inline_keyboard:[[{text:'🎮 Play Beteseb Bingo',web_app:{url:`${GAME_URL}?tid=${tid}`}}]],remove_keyboard:true}});
+      `✅ *Registered Successfully!*\n\n👤 Name: *${name}*\n📱 Phone: ${phone}\n💰 Balance: *${balance} ETB*\n\nDeposit ETB to start playing! 🎱`,
+      { parse_mode:'Markdown', reply_markup: MAIN_MENU }
+    );
   });
 
   console.log('🤖 Telegram bot started!');
