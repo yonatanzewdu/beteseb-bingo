@@ -45,8 +45,18 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 .stake-etb{font-family:'Orbitron',sans-serif;font-size:22px;color:var(--gold);margin-bottom:4px}
 .stake-info{font-size:12px;color:var(--gray)}
 
-/* CARD SELECTION */
-.cd-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+/* TWO CARD SELECTION */
+.slot-tabs{display:flex;gap:8px;margin-bottom:10px}
+.slot-tab{flex:1;padding:9px;border-radius:8px;border:1px solid #4a2d7a;background:var(--card);color:var(--gray);font-weight:700;font-size:13px;cursor:pointer;text-align:center;transition:all .2s}
+.slot-tab.active{background:var(--purple);color:#fff;border-color:var(--purple)}
+.slot-tab.selected{border-color:var(--green);color:var(--green)}
+.slot-tab.selected.active{background:var(--green);color:#fff;border-color:var(--green)}
+
+/* TWO CARDS GAME VIEW */
+.cards-game-wrap{display:flex;flex-direction:column;gap:14px}
+.card-container{background:var(--panel);border-radius:16px;padding:12px;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+.card-id-tag{font-size:12px;color:var(--gray);margin-bottom:8px;padding-left:4px;display:flex;justify-content:space-between;align-items:center}
+.card-slot-badge{font-size:10px;background:var(--purple);color:#fff;padding:2px 8px;border-radius:10px;font-weight:700}
 .cd-countdown{color:var(--gold);font-weight:700;font-size:14px}
 .card-search{width:100%;background:var(--card);border:1px solid #4a2d7a;color:#fff;padding:9px 12px;border-radius:8px;font-size:14px;margin-bottom:10px;outline:none}
 .card-search::placeholder{color:var(--gray)}
@@ -226,8 +236,20 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 
 <div id="screenCards" class="screen">
   <div class="cd-header">
-    <h2 class="screen-title" style="margin:0">CHOOSE YOUR CARD</h2>
+    <h2 class="screen-title" style="margin:0">CHOOSE YOUR CARDS</h2>
     <div class="cd-countdown" id="cdCountdown">Waiting...</div>
+  </div>
+  <!-- Slot selector tabs -->
+  <div class="slot-tabs">
+    <div class="slot-tab active" id="slotTab1" onclick="setActiveSlot(1)">
+      Card 1 <span id="slot1Label"></span>
+    </div>
+    <div class="slot-tab" id="slotTab2" onclick="setActiveSlot(2)">
+      Card 2 <span id="slot2Label" style="color:var(--gray);font-size:11px">(optional)</span>
+    </div>
+  </div>
+  <div style="font-size:12px;color:var(--gray);margin-bottom:8px" id="slotHint">
+    Select a card for Card 1. Each card costs 1 stake.
   </div>
   <input class="card-search" type="number" id="cardSearch" placeholder="Search card # (1–400)..." min="1" max="400">
   <div id="poolGrid" class="pool-grid"></div>
@@ -247,15 +269,8 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
     <div class="stat-box"><div class="lbl">Players</div><div id="playerCountVal" class="val">0</div><div style="font-size:9px;color:var(--green)">in game</div></div>
   </div>
   <div class="claim-bar-wrap"><div class="claim-bar" id="claimBar"></div></div>
-  <div class="card-container">
-    <div id="cardLabel" class="card-id-tag">Card #---</div>
-    <div class="bingo-header">
-      <div class="bingo-col-head bh-b">B</div><div class="bingo-col-head bh-i">I</div>
-      <div class="bingo-col-head bh-n">N</div><div class="bingo-col-head bh-g">G</div>
-      <div class="bingo-col-head bh-o">O</div>
-    </div>
-    <div id="cardBody" class="bingo-body"></div>
-    <button id="bingoBtn" class="bingo-btn" onclick="claimBingo()">🎉 BINGO!</button>
+  <div class="cards-game-wrap" id="cardsGameWrap">
+    <!-- Cards rendered dynamically -->
   </div>
   <div class="tracker-wrap"><div id="trackerGrid" class="tracker-grid"></div></div>
 </div>
@@ -612,7 +627,8 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 <script>
 // ─── STATE ────────────────────────────────────────────────────
 let ws, myPlayerId, myName='', myRoomId=null, myStakeId=null;
-let myCardId=null, myCardNumbers=[], markedIndices=new Set(), currentBalance=0;
+// Two-card state: myCards[0] and myCards[1], each = {cardId, numbers, marked: Set}
+let myCards=[null,null], activeSlot=1, currentBalance=0;
 let claimWindowOpen=false, claimBarAnim=null, prevLastCalled=null;
 let telegramId=null, isAdmin=false, adminToken='';
 let cardPool=[];
@@ -696,11 +712,13 @@ function handle(msg){
     case 'lobbyUpdate': renderStakes(msg.stakes); break;
 
     case 'joinedRoom':
-      myRoomId=msg.roomId; myStakeId=msg.stakeId; myCardId=null;
-      markedIndices=new Set([12]); setBalance(msg.balance);
+      myRoomId=msg.roomId; myStakeId=msg.stakeId;
+      myCards=[null,null]; markedIndices=[new Set([12]),new Set([12])];
+      activeSlot=1;
+      setBalance(msg.balance);
+      updateSlotTabs();
       if(msg.status==='playing'){
-        // Late join — game already in progress. A 'spectating' message
-        // with the live state follows immediately; it handles navigation.
+        // Late join — spectating message follows
       } else {
         navGo('screenCards','navCards');
       }
@@ -710,8 +728,10 @@ function handle(msg){
       cardPool=msg.pool; renderCardPool(msg.pool); break;
 
     case 'cardSelected':
-      myCardId=msg.cardId; myCardNumbers=msg.cardNumbers;
-      document.getElementById('cardLabel').innerText=`Card #${msg.cardId}`; break;
+      // slot is 1-based
+      myCards[msg.slot-1]={cardId:msg.cardId,numbers:msg.cardNumbers,marked:new Set([12])};
+      updateSlotTabs();
+      break;
 
     case 'countdown':
       document.getElementById('cdCountdown').innerText=`Starts in: ${msg.seconds}s`; break;
@@ -719,37 +739,37 @@ function handle(msg){
     case 'waitingForPlayers':
       document.getElementById('cdCountdown').innerText='Waiting for players...'; break;
 
-    case 'yourCard':
-      myCardId=msg.cardId; myCardNumbers=msg.cardNumbers;
-      document.getElementById('cardLabel').innerText=`Card #${msg.cardId}`;
+    case 'yourCards':
+      // Server sends array of cards at game start
+      myCards=msg.cards.map(c=>({cardId:c.cardId,numbers:c.cardNumbers,marked:new Set([12])}));
+      while(myCards.length<2) myCards.push(null);
       document.getElementById('potVal').innerText=`${msg.pot} ETB`;
       document.getElementById('playerCountVal').innerText=msg.playerCount;
-      markedIndices=new Set([12]); renderCard(myCardNumbers);
-      // Show bingo button only for active players
-      document.getElementById('bingoBtn').style.display='flex';
+      renderAllCards();
+      break;
+
+    // Legacy single-card support
+    case 'yourCard':
+      myCards[0]={cardId:msg.cardId,numbers:msg.cardNumbers,marked:new Set([12])};
+      myCards[1]=null;
+      document.getElementById('potVal').innerText=`${msg.pot} ETB`;
+      document.getElementById('playerCountVal').innerText=msg.playerCount;
+      renderAllCards();
       break;
 
     case 'spectating':
-      // Spectator: go to game screen but show spectator UI instead of card
-      myCardId=null; myCardNumbers=[];
+      myCards=[null,null];
       document.getElementById('potVal').innerText=`${msg.pot} ETB`;
       document.getElementById('playerCountVal').innerText=msg.playerCount;
-      document.getElementById('cardLabel').innerText='👀 Watching';
-      document.getElementById('cardBody').innerHTML=`
-        <div style="grid-column:span 5;text-align:center;padding:30px 10px;color:var(--gray);font-size:13px;line-height:2">
-          <div style="font-size:36px;margin-bottom:8px">👀</div>
-          <div style="font-weight:700;color:#fff;margin-bottom:4px">Spectator Mode</div>
-          You didn't select a card.<br>Watch the game live below.
+      document.getElementById('cardsGameWrap').innerHTML=`
+        <div style="text-align:center;padding:40px 10px;color:var(--gray);font-size:13px;line-height:2">
+          <div style="font-size:40px;margin-bottom:10px">👀</div>
+          <div style="font-weight:700;color:#fff;margin-bottom:4px;font-size:16px">Spectator Mode</div>
+          You didn't select a card.<br>Watch the game live.
         </div>`;
-      document.getElementById('bingoBtn').style.display='none';
       resetTrackerBoard(); claimWindowOpen=false;
-
-      // Late join: catch up on numbers already called this game
-      if(msg.calledNumbers && msg.calledNumbers.length){
-        msg.calledNumbers.forEach(n=>{
-          const el=document.getElementById('tb'+n);
-          if(el) el.className='t-ball '+colClass(n);
-        });
+      if(msg.calledNumbers&&msg.calledNumbers.length){
+        msg.calledNumbers.forEach(n=>{const el=document.getElementById('tb'+n);if(el)el.className='t-ball '+colClass(n);});
         prevLastCalled=msg.calledNumbers[msg.calledNumbers.length-1];
         const tb=document.getElementById('tb'+prevLastCalled);
         if(tb) tb.classList.add('latest');
@@ -759,24 +779,23 @@ function handle(msg){
         document.getElementById('ballNumber').innerText=prevLastCalled;
         document.getElementById('ballSub').innerText=`${msg.calledNumbers.length}/75`;
       }
-
       navGo('screenGame','navGame');
       break;
 
     case 'gameStart':
       document.getElementById('potVal').innerText=`${msg.pot} ETB`;
       document.getElementById('playerCountVal').innerText=msg.players.length;
-      resetTrackerBoard(); claimWindowOpen=false; setBingoBtn('idle');
+      resetTrackerBoard(); claimWindowOpen=false;
       navGo('screenGame','navGame'); break;
 
     case 'reconnected':
-      myRoomId=msg.roomId; myCardId=msg.cardId; myCardNumbers=msg.cardNumbers;
-      markedIndices=new Set([12]);
-      document.getElementById('cardLabel').innerText=`Card #${msg.cardId}`;
+      myRoomId=msg.roomId;
+      myCards=(msg.cards||[]).map(c=>({cardId:c.cardId,numbers:c.cardNumbers,marked:new Set([12])}));
+      while(myCards.length<2) myCards.push(null);
       document.getElementById('potVal').innerText=`${msg.pot} ETB`;
       document.getElementById('playerCountVal').innerText=msg.playerCount;
       msg.calledNumbers.forEach(n=>{const el=document.getElementById('tb'+n);if(el)el.className='t-ball '+colClass(n);});
-      renderCard(myCardNumbers); navGo('screenGame','navGame'); break;
+      renderAllCards(); navGo('screenGame','navGame'); break;
 
     case 'numberCalled': onNumberCalled(msg); break;
     case 'claimTooLate': showToast('⏰ Too late! Claim before next number.','warn'); break;
@@ -785,15 +804,16 @@ function handle(msg){
     case 'gameOver': showWinnerOverlay(msg); break;
 
     case 'backToCardSelection':
-      myRoomId=msg.roomId; myCardId=null; myCardNumbers=[]; markedIndices=new Set([12]);
+      myRoomId=msg.roomId; myCards=[null,null]; activeSlot=1;
       claimWindowOpen=false; hideWinnerOverlay(); if(msg.balance!==undefined)setBalance(msg.balance);
       resetTrackerBoard(); setBingoBtn('idle');
       document.getElementById('cdCountdown').innerText='Waiting...';
+      updateSlotTabs();
       navGo('screenCards','navCards'); break;
 
     case 'balanceUpdate': setBalance(msg.balance); break;
 
-    case 'leftRoom': myRoomId=null; myCardId=null; navGo('screenLobby','navHome'); break;
+    case 'leftRoom': myRoomId=null; myCards=[null,null]; navGo('screenLobby','navHome'); break;
 
     case 'depositSubmitted':
       showWalletMsg('depositMsg', msg.message, 'success');
@@ -1069,7 +1089,7 @@ function onNumberCalled(msg){
   playBallAudio(n);
 
   claimWindowOpen=true; setBingoBtn('ready'); startClaimBar(msg.claimWindowMs||4800);
-  refreshCardCells();
+  refreshAllCards();
 }
 function startClaimBar(ms){
   const bar=document.getElementById('claimBar');
@@ -1082,18 +1102,136 @@ function startClaimBar(ms){
 }
 function cf_safe_func(){}
 function setBingoBtn(state){
-  const btn=document.getElementById('bingoBtn');
-  btn.className='bingo-btn';
-  if(state==='ready') btn.classList.add('ready');
-  if(state==='locked') btn.classList.add('locked');
-}
-function claimBingo(){
-  if(!claimWindowOpen){showToast('⏰ Window closed — wait for next number','warn');return;}
-  if(!myCardId){showToast('No card selected','error');return;}
-  wsSend({type:'claimBingo',cardId:myCardId,markedIndices:Array.from(markedIndices)});
+  // Update all bingo buttons (one per card)
+  document.querySelectorAll('.bingo-btn').forEach(btn=>{
+    btn.className='bingo-btn';
+    if(state==='ready') btn.classList.add('ready');
+    if(state==='locked') btn.classList.add('locked');
+  });
 }
 
-// ─── WINNER OVERLAY ───────────────────────────────────────────
+function claimBingo(cardIdx){
+  if(!claimWindowOpen){showToast('⏰ Window closed — wait for next number','warn');return;}
+  const c=myCards[cardIdx];
+  if(!c){showToast('No card selected','error');return;}
+  wsSend({type:'claimBingo',cardId:c.cardId,markedIndices:Array.from(c.marked)});
+}
+
+// ─── TWO-CARD RENDERING ───────────────────────────────────────
+function renderAllCards(){
+  const wrap=document.getElementById('cardsGameWrap');
+  wrap.innerHTML='';
+  const activCards=myCards.filter(Boolean);
+  if(!activCards.length){
+    wrap.innerHTML=`<div style="text-align:center;padding:40px;color:var(--gray)">No cards selected.</div>`;
+    return;
+  }
+  activCards.forEach((c,idx)=>{
+    const cardIdx=myCards.indexOf(c);
+    const div=document.createElement('div');
+    div.className='card-container';
+    div.innerHTML=`
+      <div class="card-id-tag">
+        <span>Card #${c.cardId}</span>
+        ${activCards.length>1?`<span class="card-slot-badge">Card ${cardIdx+1}</span>`:''}
+      </div>
+      <div class="bingo-header">
+        <div class="bingo-col-head bh-b">B</div><div class="bingo-col-head bh-i">I</div>
+        <div class="bingo-col-head bh-n">N</div><div class="bingo-col-head bh-g">G</div>
+        <div class="bingo-col-head bh-o">O</div>
+      </div>
+      <div class="bingo-body" id="cardBody${cardIdx}"></div>
+      <button class="bingo-btn" id="bingoBtn${cardIdx}" onclick="claimBingo(${cardIdx})">🎉 BINGO!</button>`;
+    wrap.appendChild(div);
+    renderCardBody(cardIdx);
+  });
+}
+
+function renderCardBody(cardIdx){
+  const c=myCards[cardIdx]; if(!c) return;
+  const body=document.getElementById('cardBody'+cardIdx); if(!body) return;
+  body.innerHTML='';
+  c.numbers.forEach((n,i)=>{
+    const cell=document.createElement('div'); cell.className='bingo-cell'; cell.id=`c${cardIdx}_${i}`;
+    if(i===12){cell.classList.add('free','marked');cell.innerText='FREE';}
+    else{
+      cell.innerText=n;
+      cell.addEventListener('click',()=>{
+        if(i===12) return;
+        if(c.marked.has(i)){c.marked.delete(i);cell.classList.remove('marked');}
+        else{c.marked.add(i);cell.classList.add('marked');}
+        refreshCardBody(cardIdx);
+      });
+    }
+    body.appendChild(cell);
+  });
+}
+
+function refreshCardBody(cardIdx){
+  const c=myCards[cardIdx]; if(!c) return;
+  c.numbers.forEach((n,i)=>{
+    if(i===12) return;
+    const cell=document.getElementById(`c${cardIdx}_${i}`); if(!cell) return;
+    const tb=document.getElementById('tb'+n); const isCalled=tb&&tb.className.includes(' c');
+    if(c.marked.has(i)){cell.classList.add('marked');cell.classList.remove('called-not-marked');}
+    else if(isCalled){cell.classList.add('called-not-marked');}
+    else{cell.classList.remove('marked','called-not-marked');}
+  });
+}
+
+function refreshAllCards(){
+  myCards.forEach((_,idx)=>refreshCardBody(idx));
+}
+
+// ─── SLOT SELECTION ───────────────────────────────────────────
+function setActiveSlot(slot){
+  activeSlot=slot;
+  updateSlotTabs();
+  document.getElementById('slotHint').innerText=
+    slot===1 ? 'Select a card for Card 1. Each card costs 1 stake.'
+             : 'Select a card for Card 2 (optional). Costs 1 additional stake.';
+  if(cardPool.length) renderCardPool(cardPool);
+}
+
+function updateSlotTabs(){
+  [1,2].forEach(s=>{
+    const tab=document.getElementById('slotTab'+s);
+    if(!tab) return;
+    const c=myCards[s-1];
+    const label=tab.querySelector('span');
+    tab.classList.toggle('active',activeSlot===s);
+    tab.classList.toggle('selected',!!c);
+    if(label) label.innerText=c?` ✓ #${c.cardId}`:(s===2?' (optional)':'');
+  });
+}
+
+// ─── CARD POOL ────────────────────────────────────────────────
+function renderCardPool(pool){
+  const grid=document.getElementById('poolGrid'); const search=parseInt(document.getElementById('cardSearch').value)||0;
+  grid.innerHTML='';
+  pool.forEach(c=>{
+    if(search>0&&c.id!==search) return;
+    const btn=document.createElement('div'); btn.className='pool-btn'; btn.innerText=`#${c.id}`;
+    if(c.mySlot>0){
+      btn.classList.add('mine');
+      btn.innerText=`#${c.id} ✓${c.mySlot}`;
+      // Clicking own card deselects it and switches to that slot
+      btn.onclick=()=>setActiveSlot(c.mySlot);
+    } else if(c.taken){
+      btn.classList.add('taken');
+    } else {
+      btn.onclick=()=>wsSend({type:'selectCard',cardId:c.id,slot:activeSlot});
+    }
+    grid.appendChild(btn);
+  });
+}
+document.getElementById('cardSearch').addEventListener('input',()=>{
+  const val=parseInt(document.getElementById('cardSearch').value)||0;
+  document.querySelectorAll('.pool-btn').forEach(b=>{
+    const id=parseInt(b.innerText.replace(/[^0-9]/g,''));
+    b.style.display=(val===0||id===val)?'':'none';
+  });
+});
 function showWinnerOverlay(msg){
   const ov=document.getElementById('winnerOverlay');
   document.getElementById('winnerName').innerText=msg.winners&&msg.winners.length?msg.winners.join(' & '):msg.noWinner?'No Winner':'-';
