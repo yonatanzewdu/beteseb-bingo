@@ -710,6 +710,9 @@ function handle(msg){
       setBalance(0);
       if(msg.stakes) renderStakes(msg.stakes);
       telegramId=getTelegramId();
+      const pageParam = new URLSearchParams(location.search).get('page');
+if(pageParam === 'deposit') setTimeout(()=>{ navGo('screenWallet','navWallet'); switchWalletTab('deposit'); }, 1500);
+if(pageParam === 'withdraw') setTimeout(()=>{ navGo('screenWallet','navWallet'); switchWalletTab('withdraw'); }, 1500);
       if(telegramId){
         document.getElementById('loadingText').innerText='Loading your account...';
         wsSend({type:'telegramAuth',telegramId:parseInt(telegramId)});
