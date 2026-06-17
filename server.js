@@ -233,9 +233,8 @@ const CLAIM_COLLECT_MS = 700; // grace period to gather simultaneous BINGO claim
 const TOTAL_CARDS      = 400;
 
 const STAKES = [
-  { id:'st10', amount:10, maxPlayers:50 },{ id:'st20', amount:20, maxPlayers:50 },
-  { id:'st30', amount:30, maxPlayers:50 },{ id:'st50', amount:50, maxPlayers:50 },
-  { id:'st80', amount:80, maxPlayers:50 },{ id:'st100',amount:100,maxPlayers:50 },
+  { id:'st10', amount:10, maxPlayers:400 },
+  { id:'st20', amount:20, maxPlayers:400 },
 ];
 
 // ─── FIXED CARDS ─────────────────────────────────────────────
