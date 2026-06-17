@@ -1241,10 +1241,10 @@ function refreshCardCells(){
 }
 
 // ─── SLOT UI (card selection indicators) ──────────────────────
-  function updatePrizePot(playerCount, stakeAmount){
+ function updatePrizePot(cardCount, stakeAmount){
   const el=document.getElementById('cdPrizePot');
   if(!el) return;
-  const pot=Math.floor(playerCount * stakeAmount * 0.8);
+  const pot=Math.floor(cardCount * stakeAmount * 0.8);
   el.innerText = pot > 0 ? `🏆 Prize Pool: ${pot} ETB` : '🏆 Prize grows as players join';
 }
 function updateSlotUI(){
