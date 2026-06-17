@@ -307,7 +307,8 @@ function startCountdown(room){
   room.status='countdown'; room.countdownLeft=Math.ceil(LOBBY_WAIT_MS/1000);
   room.countdownTimer=setInterval(()=>{
     room.countdownLeft--;
-    if(room.players.length<2){clearInterval(room.countdownTimer);room.status='waiting';broadcast(room,{type:'waitingForPlayers'});broadcastLobby();return;}
+    const ready=room.players.filter(p=>p.cardId).length;
+    if(ready<2){clearInterval(room.countdownTimer);room.status='waiting';broadcast(room,{type:'waitingForPlayers'});broadcastLobby();return;}
     broadcast(room,{type:'countdown',seconds:room.countdownLeft});
     if(room.countdownLeft<=0){clearInterval(room.countdownTimer);startGame(room);}
   },1000);
@@ -555,7 +556,8 @@ if(!ep&&msg.telegramId){
           client.roomId=room.roomId;
           send(ws,{type:'joinedRoom',roomId:room.roomId,stakeId:room.stakeId,balance:client.balance,status:room.status});
           broadcastCardPool(room); broadcastLobby();
-          if(room.players.length>=2&&room.status==='waiting') startCountdown(room);
+             const readyPlayers=room.players.filter(p=>p.cardId).length;
+          if(readyPlayers>=2&&room.status==='waiting') startCountdown(room);
           break;
         }
         case 'selectCard':{
@@ -593,7 +595,10 @@ if(!ep&&msg.telegramId){
             const card=getCard(cardId);
             send(ws,{type:'cardSelected',cardId,cardNumbers:card.numbers,slot:2});
           }
-          broadcastCardPool(room); break;
+          broadcastCardPool(room);
+const readyCount=room.players.filter(p=>p.cardId).length;
+if(readyCount>=2&&room.status==='waiting') startCountdown(room);
+break;
         }
         case 'deselectCard':{
           if(!client.roomId) break;
