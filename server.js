@@ -717,6 +717,29 @@ function adminAuth(req,res,next){
   if(cl&&cl.isAdmin) return next();
   res.status(403).json({error:'Forbidden'});
 }
+app.get('/api/admin/admins',adminAuth,async(req,res)=>{
+  if(!db)return res.json([]);
+  res.json(await db.q('SELECT telegram_id,name,phone FROM users WHERE is_admin=true ORDER BY name'));
+});
+app.post('/api/admin/admins',adminAuth,async(req,res)=>{
+  if(!db)return res.json({ok:true});
+  const phone=String(req.body.phone||'').trim().replace(/^\+/,'');
+  if(!phone)return res.status(400).json({error:'phone required'});
+  const r=await db.q('UPDATE users SET is_admin=true WHERE phone=$1 RETURNING telegram_id,name,phone',[phone]);
+  if(!r.length)return res.status(404).json({error:'User not found'});
+  const cl=Object.values(clients).find(c=>c.telegramId===String(r[0].telegram_id));
+  if(cl)cl.isAdmin=true;
+  res.json({ok:true,user:r[0]});
+});
+app.delete('/api/admin/admins/:phone',adminAuth,async(req,res)=>{
+  if(!db)return res.json({ok:true});
+  const phone=decodeURIComponent(req.params.phone).replace(/^\+/,'');
+  if(phone===ADMIN_PHONE)return res.status(403).json({error:'Cannot remove root admin'});
+  await db.q('UPDATE users SET is_admin=false WHERE phone=$1',[phone]);
+  const cl=Object.values(clients).find(c=>{const u=userCache[c.telegramId];return u&&u.phone===phone;});
+  if(cl)cl.isAdmin=false;
+  res.json({ok:true});
+});
 
 app.get('/api/admin/deposits', adminAuth, async(req,res)=>{
   if(!db) return res.json([]);
