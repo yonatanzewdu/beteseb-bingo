@@ -372,10 +372,16 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
       <label class="form-label">Amount (ETB) — Minimum 10 ETB</label>
       <input class="form-input" type="number" id="depositAmount" placeholder="Enter amount..." min="10">
     </div>
-    <div class="form-group">
-      <label class="form-label">Transaction Reference Number</label>
-      <input class="form-input" type="text" id="depositTxRef" placeholder="e.g. TXN1234567890...">
-    </div>
+   <div class="form-group">
+  <label class="form-label">Paste your full Telebirr SMS message</label>
+  <textarea class="form-input" id="depositTxRef" placeholder="Paste the full SMS here e.g: Your transaction of ETB 50.00 to 0967423275 is confirmed. Ref: TXN123456789..." rows="4" style="resize:none;line-height:1.6"></textarea>
+  <div id="txnPreview" style="display:none;margin-top:8px;background:rgba(34,197,94,.1);border:1px solid var(--green);border-radius:8px;padding:10px;font-size:13px;color:var(--green)">
+    ✅ Reference found: <strong id="txnFound"></strong>
+  </div>
+  <div id="txnNotFound" style="display:none;margin-top:8px;background:rgba(239,68,68,.1);border:1px solid var(--red);border-radius:8px;padding:10px;font-size:13px;color:var(--red)">
+    ❌ No reference number found. Make sure you paste the full SMS.
+  </div>
+</div>
     <button class="btn-submit btn-green" onclick="submitDeposit()">Submit Deposit Request</button>
     <div id="depositMsg" style="display:none" class="status-msg"></div>
   </div>
@@ -886,11 +892,29 @@ function showWalletMsg(id, text, type){
   el.innerText=text; el.className='status-msg '+type; el.style.display='block';
   setTimeout(()=>el.style.display='none', 5000);
 }
+function extractTxnRef(text){
+  // Match common Telebirr reference patterns
+  const patterns = [
+    /\bref[:\s#]*([A-Z0-9]{6,20})\b/i,
+    /\b(TXN[A-Z0-9]{6,20})\b/i,
+    /\breference[:\s#]*([A-Z0-9]{6,20})\b/i,
+    /\bTransaction ID[:\s#]*([A-Z0-9]{6,20})\b/i,
+    /\b([A-Z]{2,4}[0-9]{8,16})\b/,
+  ];
+  for(const p of patterns){
+    const m=text.match(p);
+    if(m) return m[1]||m[0];
+  }
+  return null;
+}
+
 function submitDeposit(){
   const amount=parseInt(document.getElementById('depositAmount').value);
-  const txRef=document.getElementById('depositTxRef').value.trim();
+  const smsText=document.getElementById('depositTxRef').value.trim();
   if(!amount||amount<10){showWalletMsg('depositMsg','Minimum deposit is 10 ETB.','error');return;}
-  if(!txRef){showWalletMsg('depositMsg','Please enter the transaction reference.','error');return;}
+  if(!smsText){showWalletMsg('depositMsg','Please paste your Telebirr SMS message.','error');return;}
+  const txRef=extractTxnRef(smsText);
+  if(!txRef){showWalletMsg('depositMsg','Could not find reference number in your SMS. Please make sure you copied the full message.','error');return;}
   wsSend({type:'depositRequest',amount,txRef});
   showWalletMsg('depositMsg','Submitting...','info');
 }
@@ -1427,7 +1451,22 @@ function toggleSound(){
     setTimeout(()=>{btn.innerText='📋 Copy';btn.style.background='rgba(250,204,21,.15)';btn.style.borderColor='var(--gold)';btn.style.color='var(--gold)';},2000);
   });
 }
-
+document.getElementById('depositTxRef').addEventListener('input', function(){
+  const text=this.value.trim();
+  const preview=document.getElementById('txnPreview');
+  const notFound=document.getElementById('txnNotFound');
+  const found=document.getElementById('txnFound');
+  if(!text){preview.style.display='none';notFound.style.display='none';return;}
+  const ref=extractTxnRef(text);
+  if(ref){
+    found.innerText=ref;
+    preview.style.display='block';
+    notFound.style.display='none';
+  } else {
+    preview.style.display='none';
+    notFound.style.display='block';
+  }
+});
 // ─── INIT ────────────────────────────────────────────────────
 buildTracker();
 connect();
