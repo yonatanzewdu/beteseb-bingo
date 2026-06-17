@@ -298,8 +298,8 @@ function broadcastLobby(){
 }
 function broadcastCardPool(room){
   const base=CARD_POOL.map(c=>({id:c.id,taken:room.takenCardIds.has(c.id)}));
-  const playerCount=room.players.filter(p=>p.cardId).length;
-  room.players.forEach(p=>send(p.ws,{type:'cardPoolUpdate',pool:base.map(c=>({...c,takenByMe:p.cardId===c.id||p.cardId2===c.id})),playerCount,stakeAmount:room.stake}));
+  const cardCount=room.players.reduce((sum,p)=>(p.cardId?sum+1:sum)+(p.cardId2?1:0),0);
+room.players.forEach(p=>send(p.ws,{type:'cardPoolUpdate',pool:base.map(c=>({...c,takenByMe:p.cardId===c.id||p.cardId2===c.id})),playerCount:cardCount,stakeAmount:room.stake}));
 }
 
 // ─── GAME LIFECYCLE ──────────────────────────────────────────
@@ -554,7 +554,7 @@ if(!ep&&msg.telegramId){
           if(room.status!=='waiting'&&room.status!=='countdown') return send(ws,{type:'error',message:'Game already running.'});
           room.players.push({playerId:client.playerId,playerName:client.playerName,telegramId:client.telegramId,ws,cardId:null,cardId2:null,hasPaid:false,disqualified:false});
           client.roomId=room.roomId;
-          send(ws,{type:'joinedRoom',roomId:room.roomId,stakeId:room.stakeId,balance:client.balance,status:room.status,playerCount:room.players.filter(p=>p.cardId).length,stakeAmount:room.stake});
+          send(ws,{type:'joinedRoom',roomId:room.roomId,stakeId:room.stakeId,balance:client.balance,status:room.status,playerCount:room.players.reduce((sum,p)=>(p.cardId?sum+1:sum)+(p.cardId2?1:0),0),stakeAmount:room.stake});
           broadcastCardPool(room); broadcastLobby();
              const readyPlayers=room.players.filter(p=>p.cardId).length;
           if(readyPlayers>=2&&room.status==='waiting') startCountdown(room);
