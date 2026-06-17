@@ -893,13 +893,13 @@ function showWalletMsg(id, text, type){
   setTimeout(()=>el.style.display='none', 5000);
 }
 function extractTxnRef(text){
-  // Match common Telebirr reference patterns
   const patterns = [
+    /your transaction number is\s+([A-Z0-9]{6,20})/i,
+    /transaction number[:\s]+([A-Z0-9]{6,20})/i,
     /\bref[:\s#]*([A-Z0-9]{6,20})\b/i,
     /\b(TXN[A-Z0-9]{6,20})\b/i,
     /\breference[:\s#]*([A-Z0-9]{6,20})\b/i,
     /\bTransaction ID[:\s#]*([A-Z0-9]{6,20})\b/i,
-    /\b([A-Z]{2,4}[0-9]{8,16})\b/,
   ];
   for(const p of patterns){
     const m=text.match(p);
