@@ -241,9 +241,12 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 </div>
 
 <div id="screenCards" class="screen">
-  <div class="cd-header">
+ <div class="cd-header">
     <h2 class="screen-title" style="margin:0">CHOOSE YOUR CARDS</h2>
     <div class="cd-countdown" id="cdCountdown">Waiting...</div>
+  </div>
+  <div id="cdPrizePot" style="background:linear-gradient(135deg,rgba(250,204,21,.15),rgba(139,92,246,.15));border:1px solid rgba(250,204,21,.4);border-radius:10px;padding:10px 14px;text-align:center;font-weight:700;color:var(--gold);font-size:14px;margin-bottom:10px">
+    🏆 Prize grows as players join
   </div>
   <!-- Selected card slots -->
   <div class="selected-cards-row">
@@ -746,11 +749,12 @@ if(pageParam === 'withdraw') setTimeout(()=>{ navGo('screenWallet','navWallet');
 
     case 'lobbyUpdate': renderStakes(msg.stakes); break;
 
-    case 'joinedRoom':
+   case 'joinedRoom':
       localStorage.setItem('roomId', msg.roomId);
       myRoomId=msg.roomId; myStakeId=msg.stakeId; myCardId=null; myCardId2=null;
       markedIndices=new Set([12]); markedIndices2=new Set([12]); setBalance(msg.balance);
       resetSlotUI();
+      updatePrizePot(msg.playerCount||0, msg.stakeAmount||0);
       if(msg.status==='playing'){
         // Late join — spectating message follows
       } else {
@@ -759,7 +763,9 @@ if(pageParam === 'withdraw') setTimeout(()=>{ navGo('screenWallet','navWallet');
       break;
 
     case 'cardPoolUpdate':
-      cardPool=msg.pool; renderCardPool(msg.pool); break;
+      cardPool=msg.pool; renderCardPool(msg.pool);
+      updatePrizePot(msg.playerCount||0, msg.stakeAmount||0);
+      break;
 
     case 'cardSelected':
       if(msg.slot===2){
@@ -1235,6 +1241,12 @@ function refreshCardCells(){
 }
 
 // ─── SLOT UI (card selection indicators) ──────────────────────
+  function updatePrizePot(playerCount, stakeAmount){
+  const el=document.getElementById('cdPrizePot');
+  if(!el) return;
+  const pot=Math.floor(playerCount * stakeAmount * 0.8);
+  el.innerText = pot > 0 ? `🏆 Prize Pool: ${pot} ETB` : '🏆 Prize grows as players join';
+}
 function updateSlotUI(){
   const s1=document.getElementById('slot1'), s2=document.getElementById('slot2');
   const n1=document.getElementById('slot1Num'), n2=document.getElementById('slot2Num');
