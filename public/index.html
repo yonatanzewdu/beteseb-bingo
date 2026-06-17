@@ -1284,6 +1284,7 @@ function deselectCard(slot){
   if(slot===1){
     if(myCardId) wsSend({type:'deselectCard',cardId:myCardId,slot:1});
     myCardId=null; myCardNumbers=[];
+    myCardId2=null; myCardNumbers2=[];  // clear second too since server clears both
   } else {
     if(myCardId2) wsSend({type:'deselectCard',cardId:myCardId2,slot:2});
     myCardId2=null; myCardNumbers2=[];
