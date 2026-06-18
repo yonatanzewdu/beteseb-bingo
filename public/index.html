@@ -446,27 +446,25 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
         <label class="form-label">Account Holder Name</label>
         <input class="form-input" type="text" id="settingsTelebirrName" placeholder="e.g. Lidetua">
       </div>
-      <button class="btn-submit btn-green" onclick="adminSavePaymentSettings()">💾 Save Changes</button>
-      <div id="settingsMsg" style="display:none" class="status-msg">
-        <!-- Admin Management -->
-<div style="margin-top:18px">
- <div style="margin-top:18px">
-  <div style="font-family:'Orbitron',sans-serif;font-size:13px;font-weight:900;color:var(--red);margin-bottom:14px">👑 Admin Management</div>
-  <div class="form-group">
-    <label class="form-label">Add Admin by Phone Number</label>
-    <input class="form-input" type="text" id="newAdminPhone" placeholder="e.g. 251934255415">
-  </div>
-  <button class="btn-submit btn-green" onclick="adminAddAdmin()" style="margin-bottom:14px">➕ Add Admin</button>
-  <div style="font-size:12px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Current Admins</div>
-  <div id="adminList"></div>
-  <button class="refresh-btn" onclick="adminLoadAdmins()" style="margin-top:8px">🔄 Refresh</button>
-  <div id="adminMgmtMsg" style="display:none" class="status-msg"></div>
-</div>
-</div></div>
-</div>
-</div>
-      </div>
+ <button class="btn-submit btn-green" onclick="adminSavePaymentSettings()">💾 Save Changes</button>
+      <div id="settingsMsg" style="display:none" class="status-msg"></div>
     </div>
+
+    <!-- Admin Management -->
+    <div style="background:var(--card);border:1px solid #3c2463;border-radius:12px;padding:16px;margin-top:14px">
+      <div style="font-family:'Orbitron',sans-serif;font-size:13px;font-weight:900;color:var(--red);margin-bottom:14px">👑 Admin Management</div>
+      <div class="form-group">
+        <label class="form-label">Add Admin by Phone Number</label>
+        <input class="form-input" type="text" id="newAdminPhone" placeholder="e.g. 251934255415">
+      </div>
+      <button class="btn-submit btn-green" onclick="adminAddAdmin()" style="margin-bottom:14px">➕ Add Admin</button>
+      <div style="font-size:12px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Current Admins</div>
+      <div id="adminList"></div>
+      <button class="refresh-btn" onclick="adminLoadAdmins()" style="margin-top:8px">🔄 Refresh</button>
+      <div id="adminMgmtMsg" style="display:none" class="status-msg"></div>
+    </div>
+  </div>
+</div>
   </div>
 </div>
 
@@ -677,6 +675,7 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 
 <script>
 // ─── STATE ────────────────────────────────────────────────────
+  const ADMIN_PHONE_CLIENT = '251934255415';
 let ws, myPlayerId, myName='', myRoomId=localStorage.getItem('roomId')||null, myStakeId=null;
 let myCardId=null, myCardNumbers=[], markedIndices=new Set(), currentBalance=0;
 let myCardId2=null, myCardNumbers2=[], markedIndices2=new Set();
@@ -955,7 +954,7 @@ function switchAdminTab(tab){
   document.getElementById('adminSettings').classList.toggle('active',tab==='settings');
   if(tab==='deposits') adminLoadDeposits();
   if(tab==='withdrawals') adminLoadWithdrawals();
-  if(tab==='settings') adminLoadPaymentSettings();
+  if(tab==='settings'){ adminLoadPaymentSettings(); adminLoadAdmins(); }
 }
 
 async function adminFetch(path, method='GET'){
@@ -1109,6 +1108,43 @@ function esc(str){
 }
 
 // ─── ADMIN: PAYMENT SETTINGS ───────────────────────────────────
+  async function adminLoadAdmins(){
+  const list=document.getElementById('adminList');
+  list.innerHTML='<div class="empty-state">Loading...</div>';
+  try{
+    const data=await adminFetch(`/api/admin/admins?token=${adminToken}`);
+    if(!data.length){list.innerHTML='<div class="empty-state">No admins found</div>';return;}
+    list.innerHTML=data.map(a=>`
+      <div class="request-card" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px">
+        <div>
+          <div style="font-weight:700">${esc(a.name)}</div>
+          <div style="font-size:12px;color:var(--gray)">📱 ${esc(a.phone||'—')}</div>
+        </div>
+        ${a.phone===ADMIN_PHONE_CLIENT?'<span style="color:var(--gold);font-size:12px">ROOT</span>':
+        `<button onclick="adminRemoveAdmin('${esc(a.phone)}')" style="background:var(--red);color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer">Remove</button>`}
+      </div>`).join('');
+  }catch(e){list.innerHTML='<div class="empty-state">Error loading admins</div>';}
+}
+
+async function adminAddAdmin(){
+  const phone=document.getElementById('newAdminPhone').value.trim().replace(/^\+/,'');
+  if(!phone){showToast('Enter a phone number','error');return;}
+  try{
+    const res=await fetch('/api/admin/admins',{method:'POST',headers:{'x-admin-token':adminToken,'Content-Type':'application/json'},body:JSON.stringify({phone})});
+    const data=await res.json();
+    if(data.ok){showToast('✅ Admin added!');document.getElementById('newAdminPhone').value='';adminLoadAdmins();}
+    else showToast(data.error||'Failed','error');
+  }catch(e){showToast('Error','error');}
+}
+
+async function adminRemoveAdmin(phone){
+  if(!confirm(`Remove admin ${phone}?`)) return;
+  try{
+    await adminFetch(`/api/admin/admins/${encodeURIComponent(phone)}`,'DELETE');
+    showToast('Admin removed.');
+    adminLoadAdmins();
+  }catch(e){showToast('Error','error');}
+}
 async function adminLoadPaymentSettings(){
   try{
     const data=await adminFetch(`/api/admin/payment-settings?token=${adminToken}`);
