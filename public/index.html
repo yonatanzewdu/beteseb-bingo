@@ -414,7 +414,7 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
       Withdrawals <span class="badge-count" id="withdrawCount">0</span>
     </div>
     <div class="admin-tab" onclick="switchAdminTab('search')">Search</div>
-    <div class="admin-tab" onclick="switchAdminTab('settings')">Settings</div>
+    <div id="settingsTab" style="display:none" class="admin-tab" onclick="switchAdminTab('settings')">Settings</div>
   </div>
 
   <div id="adminDeposits" class="admin-section active">
@@ -676,6 +676,7 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
 <script>
 // ─── STATE ────────────────────────────────────────────────────
   const ADMIN_PHONE_CLIENT = '251934255415';
+  const ADMIN_PHONE_CLIENT2 = '251912737524';
 let ws, myPlayerId, myName='', myRoomId=localStorage.getItem('roomId')||null, myStakeId=null;
 let myCardId=null, myCardNumbers=[], markedIndices=new Set(), currentBalance=0;
 let myCardId2=null, myCardNumbers2=[], markedIndices2=new Set();
@@ -756,6 +757,14 @@ if(pageParam === 'withdraw') setTimeout(()=>{ navGo('screenWallet','navWallet');
   if(isAdmin){
     document.getElementById('navAdmin').style.display='flex';
     document.getElementById('navCards').style.display='none';
+    // Check if this is a root admin — if so, show the Settings tab
+    if(telegramId){
+      fetch(`/api/user/${telegramId}`).then(r=>r.json()).then(u=>{
+        if(u&&(u.phone===ADMIN_PHONE_CLIENT||u.phone===ADMIN_PHONE_CLIENT2)){
+          document.getElementById('settingsTab').style.display='';
+        }
+      }).catch(()=>{});
+    }
   }
   // Try to reconnect to active game after auth
   if(myRoomId && telegramId){
@@ -1108,43 +1117,6 @@ function esc(str){
 }
 
 // ─── ADMIN: PAYMENT SETTINGS ───────────────────────────────────
-  async function adminLoadAdmins(){
-  const list=document.getElementById('adminList');
-  list.innerHTML='<div class="empty-state">Loading...</div>';
-  try{
-    const data=await adminFetch(`/api/admin/admins?token=${adminToken}`);
-    if(!data.length){list.innerHTML='<div class="empty-state">No admins found</div>';return;}
-    list.innerHTML=data.map(a=>`
-      <div class="request-card" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px">
-        <div>
-          <div style="font-weight:700">${esc(a.name)}</div>
-          <div style="font-size:12px;color:var(--gray)">📱 ${esc(a.phone||'—')}</div>
-        </div>
-        ${a.phone===ADMIN_PHONE_CLIENT?'<span style="color:var(--gold);font-size:12px">ROOT</span>':
-        `<button onclick="adminRemoveAdmin('${esc(a.phone)}')" style="background:var(--red);color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer">Remove</button>`}
-      </div>`).join('');
-  }catch(e){list.innerHTML='<div class="empty-state">Error loading admins</div>';}
-}
-
-async function adminAddAdmin(){
-  const phone=document.getElementById('newAdminPhone').value.trim().replace(/^\+/,'');
-  if(!phone){showToast('Enter a phone number','error');return;}
-  try{
-    const res=await fetch('/api/admin/admins',{method:'POST',headers:{'x-admin-token':adminToken,'Content-Type':'application/json'},body:JSON.stringify({phone})});
-    const data=await res.json();
-    if(data.ok){showToast('✅ Admin added!');document.getElementById('newAdminPhone').value='';adminLoadAdmins();}
-    else showToast(data.error||'Failed','error');
-  }catch(e){showToast('Error','error');}
-}
-
-async function adminRemoveAdmin(phone){
-  if(!confirm(`Remove admin ${phone}?`)) return;
-  try{
-    await adminFetch(`/api/admin/admins/${encodeURIComponent(phone)}`,'DELETE');
-    showToast('Admin removed.');
-    adminLoadAdmins();
-  }catch(e){showToast('Error','error');}
-}
 async function adminLoadPaymentSettings(){
   try{
     const data=await adminFetch(`/api/admin/payment-settings?token=${adminToken}`);
@@ -1508,7 +1480,7 @@ async function adminLoadAdmins(){
           <div style="font-weight:700;font-size:14px">${a.name||'Unknown'}</div>
           <div style="font-size:11px;color:var(--gray)">📱 ${a.phone}</div>
         </div>
-        <button onclick="adminRemoveAdmin('${a.phone}')" style="background:var(--red);color:#fff;border:none;padding:7px 14px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">Remove</button>
+        ${(a.phone===ADMIN_PHONE_CLIENT||a.phone===ADMIN_PHONE_CLIENT2)?'<span style="color:var(--gold);font-size:12px;font-weight:700">ROOT</span>':`<button onclick="adminRemoveAdmin('${a.phone}')" style="background:var(--red);color:#fff;border:none;padding:7px 14px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">Remove</button>`}
       </div>`).join('');
   }catch(e){list.innerHTML='<div style="color:var(--red);font-size:13px">Failed to load.</div>';}
 }
