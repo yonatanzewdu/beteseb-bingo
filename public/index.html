@@ -926,6 +926,11 @@ function extractTxnRef(text){
     /\b(TXN[A-Z0-9]{6,20})\b/i,
     /\breference[:\s#]*([A-Z0-9]{6,20})\b/i,
     /\bTransaction ID[:\s#]*([A-Z0-9]{6,20})\b/i,
+    // Amharic Telebirr SMS: "የግብይት ቁጥርዎ DFJ33I01A1 ነው"
+    /የግብይት\s*ቁጥርዎ\s+([A-Z0-9]{6,20})/i,
+    // Fallback: pull the code straight out of the receipt link
+    // e.g. https://transactioninfo.ethiotelecom.et/receipt/DFJ33I01A1
+    /transactioninfo\.ethiotelecom\.et\/receipt\/([A-Z0-9]{6,20})/i,
   ];
   for(const p of patterns){
     const m=text.match(p);
