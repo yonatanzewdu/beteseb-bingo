@@ -225,6 +225,16 @@ if (process.env.DATABASE_URL) {
         if (num)  PAYMENT_INFO.telebirrNumber = num;
         if (name) PAYMENT_INFO.telebirrName   = name;
       } catch (e) { console.error('⚠️ Settings load:', e.message); }
+
+      // Clean up any games left in 'playing' state from a previous crashed session
+      try {
+        const stale = await db.q(
+          `UPDATE games SET status='finished', ended_at=NOW(), win_amount=0
+           WHERE status='playing' AND started_at < NOW() - INTERVAL '2 hours'
+           RETURNING id`
+        );
+        if(stale.length) console.log(`🧹 Cleaned up ${stale.length} stale playing game(s):`, stale.map(r=>r.id));
+      } catch(e) { console.error('⚠️ Stale game cleanup:', e.message); }
     }).catch(e => { console.error('❌ DB:', e.message); db = null; });
   } catch(e) { console.log('⚠️ pg error:', e.message); }
 } else {
@@ -367,10 +377,11 @@ async function startGame(room){
   room.status='playing';
   // Count paid cards (each card = one stake)
   const paidCards=room.players.reduce((s,p)=>s+(p.hasPaid?((p.cardId?1:0)+(p.cardId2?1:0)):0),0);
-  room.pot=Math.floor(paidCards*room.stake*(1-HOUSE_CUT));
+  const grossPot=paidCards*room.stake;                          // total stakes collected (gross)
+  room.pot=Math.floor(grossPot*(1-HOUSE_CUT));                  // 80% prize pool shown to players
   room.calledNumbers=[]; room.availableNumbers=Array.from({length:75},(_,i)=>i+1);
   room.claimedThisRound=[]; room.claimWindowOpen=false;
-  if(db){try{room.dbGameId=await db.saveGame(room.roomId,room.stakeId,room.stake,room.pot);}catch(e){}}
+  if(db){try{room.dbGameId=await db.saveGame(room.roomId,room.stakeId,room.stake,grossPot);}catch(e){}}
 
   room.players.forEach(p=>{
     if(p.cardId||p.cardId2){
@@ -458,7 +469,17 @@ async function endGame(room, winners, customMsg, noWinner){
     }
   }
 
-  if(db&&room.dbGameId){try{await db.endGame(room.dbGameId,winnerTids,winAmount,winners.length>1,room.calledNumbers);}catch(e){}}
+  if(db&&room.dbGameId){
+    try{await db.endGame(room.dbGameId,winnerTids,winAmount,winners.length>1,room.calledNumbers);}
+    catch(e){console.error('endGame DB error:',e.message);}
+  } else if(db&&!room.dbGameId){
+    // saveGame failed earlier — create+close the record now so it never stays 'playing'
+    try{
+      const grossPot=room.players.reduce((s,p)=>s+(p.hasPaid?((p.cardId?1:0)+(p.cardId2?1:0)):0),0)*room.stake;
+      const gid=await db.saveGame(room.roomId,room.stakeId,room.stake,grossPot);
+      await db.endGame(gid,winnerTids,winAmount,winners.length>1,room.calledNumbers);
+    }catch(e){console.error('endGame fallback DB error:',e.message);}
+  }
 
   const isSplit=winners&&winners.length>1;
   const msg=customMsg||(noWinner?'No winner this round':
@@ -533,22 +554,10 @@ wss.on('connection',(ws)=>{
           const user=await loadUser(tid);
           if(user){
             client.telegramId=tid; client.playerName=user.name; client.balance=user.balance; client.isAdmin=user.isAdmin||isAdminPhone(user.phone);
-            send(ws,{type:'authSuccess',playerName:user.name,balance:user.balance,isRegistered:true,isAdmin:client.isAdmin,adminToken:client.isAdmin?ADMIN_PHONE:tid});
+          send(ws,{type:'authSuccess',playerName:user.name,balance:user.balance,isRegistered:true,isAdmin:client.isAdmin,adminToken:client.isAdmin?ADMIN_PHONE:undefined});
           } else {
-            // User not found in DB (or DB unavailable). Still set telegramId so the
-            // root admin (hardcoded ADMIN_PHONE) can be granted access independently —
-            // root admin status must NEVER depend on a successful DB lookup.
             client.telegramId=tid;
-            // Look up phone directly via DB if possible, to check root admin by phone too
-            let rootAdmin=false;
-            if(db){
-              try{
-                const raw=await db.getUser(tid);
-                if(raw&&isAdminPhone(raw.phone)) rootAdmin=true;
-              }catch(e){}
-            }
-            client.isAdmin=rootAdmin;
-            send(ws,{type:'authSuccess',playerName:'',balance:0,isRegistered:false,isAdmin:rootAdmin,adminToken:rootAdmin?ADMIN_PHONE:tid});
+            send(ws,{type:'authSuccess',playerName:'',balance:0,isRegistered:false,isAdmin:false});
           }
           break;
         }
