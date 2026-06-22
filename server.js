@@ -533,10 +533,22 @@ wss.on('connection',(ws)=>{
           const user=await loadUser(tid);
           if(user){
             client.telegramId=tid; client.playerName=user.name; client.balance=user.balance; client.isAdmin=user.isAdmin||isAdminPhone(user.phone);
-          send(ws,{type:'authSuccess',playerName:user.name,balance:user.balance,isRegistered:true,isAdmin:client.isAdmin,adminToken:client.isAdmin?ADMIN_PHONE:undefined});
+            send(ws,{type:'authSuccess',playerName:user.name,balance:user.balance,isRegistered:true,isAdmin:client.isAdmin,adminToken:client.isAdmin?ADMIN_PHONE:tid});
           } else {
+            // User not found in DB (or DB unavailable). Still set telegramId so the
+            // root admin (hardcoded ADMIN_PHONE) can be granted access independently —
+            // root admin status must NEVER depend on a successful DB lookup.
             client.telegramId=tid;
-            send(ws,{type:'authSuccess',playerName:'',balance:0,isRegistered:false,isAdmin:false});
+            // Look up phone directly via DB if possible, to check root admin by phone too
+            let rootAdmin=false;
+            if(db){
+              try{
+                const raw=await db.getUser(tid);
+                if(raw&&isAdminPhone(raw.phone)) rootAdmin=true;
+              }catch(e){}
+            }
+            client.isAdmin=rootAdmin;
+            send(ws,{type:'authSuccess',playerName:'',balance:0,isRegistered:false,isAdmin:rootAdmin,adminToken:rootAdmin?ADMIN_PHONE:tid});
           }
           break;
         }
