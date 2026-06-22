@@ -24,6 +24,21 @@ app.use('/audio', express.static(path.join(__dirname, 'audio')));
 app.use(express.json());
 
 const ADMIN_PHONE = '251934255415';
+const ADMIN_PHONES = new Set(['251934255415','251912737524']);
+// Admin session tokens: Map<token, {telegramId, expires}>
+const adminSessions = new Map();
+function generateAdminToken() {
+  const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let t=''; for(let i=0;i<32;i++) t+=chars[Math.floor(Math.random()*chars.length)];
+  return t;
+}
+function createAdminSession(telegramId) {
+  const token = generateAdminToken();
+  adminSessions.set(token, { telegramId: String(telegramId), expires: Date.now() + 24*60*60*1000 });
+  return token;
+}
+// Clean expired sessions every hour
+setInterval(()=>{ const now=Date.now(); adminSessions.forEach((v,k)=>{ if(v.expires<now) adminSessions.delete(k); }); }, 3600000);
 function isAdminPhone(phone) {
   if (!phone) return false;
   const normalized = String(phone).replace(/^\+/, '');
@@ -94,6 +109,11 @@ if (process.env.DATABASE_URL) {
 
       // ── Deposits ──
       async createDeposit(tid, amount, txRef) {
+        // Reject duplicate tx_ref — prevents re-submitting same Telebirr SMS
+        const existing = await this.q(
+          `SELECT id FROM deposit_requests WHERE tx_ref=$1 LIMIT 1`, [txRef]
+        );
+        if (existing.length) throw new Error('DUPLICATE_REF');
         const r = await this.q(
           `INSERT INTO deposit_requests(user_id,amount,tx_ref,status)
            SELECT id,$2,$3,'pending' FROM users WHERE telegram_id=$1 RETURNING id`,
@@ -267,6 +287,9 @@ function checkWin(nums, called, marked) {
 
 // ─── STATE ───────────────────────────────────────────────────
 const clients={}, rooms={}, userCache={};
+// Per-client async mutex — prevents race conditions on balance operations
+// Usage: client.lock = client.lock.then(() => doWork())
+// This chains all financial ops for a given client sequentially.
 
 // ─── USER HELPERS ────────────────────────────────────────────
 async function loadUser(tid) {
@@ -458,7 +481,12 @@ function leaveRoom(client){
     if(p.cardId) room.takenCardIds.delete(p.cardId);
     if(p.cardId2) room.takenCardIds.delete(p.cardId2);
     if(p.hasPaid&&(room.status==='waiting'||room.status==='countdown')){
-      client.balance+=room.stake; saveBalance(client.telegramId,client.balance);
+      // Refund exactly what was paid: 1 stake per card selected
+      const cardsPaid=(p.cardId?1:0)+(p.cardId2?1:0);
+      const refund=room.stake*Math.max(cardsPaid,1);
+      client.balance+=refund;
+      saveBalance(client.telegramId,client.balance);
+      if(db&&client.telegramId){db.logTx(client.telegramId,'stake_refund',refund,client.balance,room.roomId).catch(()=>{});}
       send(client.ws,{type:'balanceUpdate',balance:client.balance});
     }
   }
@@ -472,7 +500,7 @@ function leaveRoom(client){
 // ─── WEBSOCKET ────────────────────────────────────────────────
 wss.on('connection',(ws)=>{
   const playerId=uuidv4();
-  const client={playerId,playerName:'',telegramId:null,balance:0,roomId:null,isAdmin:false,ws};
+  const client={playerId,playerName:'',telegramId:null,balance:0,roomId:null,isAdmin:false,ws,lock:Promise.resolve()};
   clients[playerId]=client; ws._pid=playerId;
 
   const lobbyStakes=STAKES.map(s=>{const r=Object.values(rooms).find(r=>r.stakeId===s.id);
@@ -481,6 +509,7 @@ wss.on('connection',(ws)=>{
 
   ws.on('message',async raw=>{
     try{
+      if(raw.length>65536) return; // reject messages >64KB
       const msg=JSON.parse(raw);
       const client=clients[ws._pid];
       if(!client) return;
@@ -491,7 +520,8 @@ wss.on('connection',(ws)=>{
           const user=await loadUser(tid);
           if(user){
             client.telegramId=tid; client.playerName=user.name; client.balance=user.balance; client.isAdmin=user.isAdmin||isAdminPhone(user.phone);
-          send(ws,{type:'authSuccess',playerName:user.name,balance:user.balance,isRegistered:true,isAdmin:client.isAdmin,adminToken:client.isAdmin?ADMIN_PHONE:undefined});
+          const adminToken=client.isAdmin?createAdminSession(tid):undefined;
+          send(ws,{type:'authSuccess',playerName:user.name,balance:user.balance,isRegistered:true,isAdmin:client.isAdmin,adminToken});
           } else {
             client.telegramId=tid;
             send(ws,{type:'authSuccess',playerName:'',balance:0,isRegistered:false,isAdmin:false});
@@ -566,14 +596,17 @@ if(!ep&&msg.telegramId){
           if(!room||(room.status!=='waiting'&&room.status!=='countdown')) break;
           const cardId=parseInt(msg.cardId);
           const slot=msg.slot===2?2:1;
-          if(cardId<1||cardId>TOTAL_CARDS) break;
+          if(cardId<1||cardId>TOTAL_CARDS||isNaN(cardId)) break;
           if(room.takenCardIds.has(cardId)) return send(ws,{type:'error',message:'Card already taken!'});
           const p=room.players.find(p=>p.playerId===client.playerId);
           if(!p) break;
+          // Prevent concurrent selectCard processing for same player
+          if(p.selectingCard) return send(ws,{type:'error',message:'Please wait...'});
+          p.selectingCard=true;
           // Charge only on first card pick; second card charges at game start
     if(slot===1){
   if(p.cardId) room.takenCardIds.delete(p.cardId);
-  if(client.balance<room.stake) return send(ws,{type:'error',message:`Need ${room.stake} ETB. Please deposit.`});
+  if(client.balance<room.stake){ p.selectingCard=false; return send(ws,{type:'error',message:`Need ${room.stake} ETB. Please deposit.`}); }
   if(!p.hasPaid){
     client.balance-=room.stake; p.hasPaid=true;
     await saveBalance(client.telegramId,client.balance);
@@ -582,17 +615,19 @@ if(!ep&&msg.telegramId){
   }
   p.cardId=cardId; room.takenCardIds.add(cardId);
             const card=getCard(cardId);
+            p.selectingCard=false;
             send(ws,{type:'cardSelected',cardId,cardNumbers:card.numbers,slot:1});
           } else {
             // Second card — check balance for extra stake, charge now
             if(p.cardId2) room.takenCardIds.delete(p.cardId2);
-            if(client.balance<room.stake) return send(ws,{type:'error',message:`Need ${room.stake} ETB more for second card.`});
+            if(client.balance<room.stake){ p.selectingCard=false; return send(ws,{type:'error',message:`Need ${room.stake} ETB more for second card.`}); }
             client.balance-=room.stake;
             await saveBalance(client.telegramId,client.balance);
             if(db&&client.telegramId){try{await db.logTx(client.telegramId,'stake',-room.stake,client.balance,room.roomId);}catch(e){}}
             send(ws,{type:'balanceUpdate',balance:client.balance});
             p.cardId2=cardId; room.takenCardIds.add(cardId);
             const card=getCard(cardId);
+            p.selectingCard=false;
             send(ws,{type:'cardSelected',cardId,cardNumbers:card.numbers,slot:2});
           }
           broadcastCardPool(room);
@@ -655,15 +690,27 @@ break;
         // ── Deposit request ──
         case 'depositRequest':{
           const{amount,txRef}=msg;
-          if(!amount||amount<10) return send(ws,{type:'error',message:'Minimum deposit is 10 ETB.'});
+          if(!amount||amount<10||!Number.isFinite(amount)) return send(ws,{type:'error',message:'Minimum deposit is 10 ETB.'});
+          if(amount>100000) return send(ws,{type:'error',message:'Maximum single deposit is 100,000 ETB. Contact support for larger amounts.'});
           if(!txRef||!txRef.trim()) return send(ws,{type:'error',message:'Transaction reference required.'});
           if(!client.telegramId) return send(ws,{type:'error',message:'Please register first via the Telegram bot (/start).'});
+          // Rate limit: 1 deposit request per 30 seconds per user
+          const now=Date.now();
+          if(client.lastDepositAt && now-client.lastDepositAt < 30000)
+            return send(ws,{type:'error',message:'Please wait 30 seconds before submitting another deposit.'});
+          client.lastDepositAt=now;
           if(db){
             try{
               const id=await db.createDeposit(client.telegramId,amount,txRef.trim());
               if(!id) return send(ws,{type:'error',message:'Account not found in database. Please send /start to the bot again.'});
               send(ws,{type:'depositSubmitted',message:'Deposit request submitted! Waiting for admin approval.'});
-            }catch(e){console.error('Deposit error:',e.message); send(ws,{type:'error',message:'Deposit failed: '+e.message});}
+            }catch(e){
+              const msg=e.message==='DUPLICATE_REF'
+                ?'This Telebirr reference was already submitted. If you need help, contact support.'
+                :'Deposit failed: '+e.message;
+              console.error('Deposit error:',e.message);
+              send(ws,{type:'error',message:msg});
+            }
           } else {
             // Memory mode: auto-approve
             client.balance+=amount;
@@ -676,17 +723,30 @@ break;
         // ── Withdrawal request ──
         case 'withdrawalRequest':{
           const{amount}=msg;
-          if(!amount||amount<50) return send(ws,{type:'error',message:'Minimum withdrawal is 50 ETB.'});
+          if(!amount||amount<50||!Number.isFinite(amount)) return send(ws,{type:'error',message:'Minimum withdrawal is 50 ETB.'});
+          if(amount>100000) return send(ws,{type:'error',message:'Maximum single withdrawal is 100,000 ETB. Contact support for larger amounts.'});
           if(client.balance<amount) return send(ws,{type:'error',message:'Insufficient balance.'});
           if(!client.telegramId) return send(ws,{type:'error',message:'Please register first.'});
+          // Rate limit: 1 withdrawal per 60 seconds
+          const now=Date.now();
+          if(client.lastWithdrawAt && now-client.lastWithdrawAt < 60000)
+            return send(ws,{type:'error',message:'Please wait 60 seconds before another withdrawal.'});
+          client.lastWithdrawAt=now;
           if(db){
-            try{
-              const result=await db.createWithdrawal(client.telegramId,amount);
-              if(result.error) return send(ws,{type:'error',message:result.error});
-              client.balance=result.newBalance;
-              send(ws,{type:'balanceUpdate',balance:client.balance});
-              send(ws,{type:'withdrawalSubmitted',message:'Withdrawal request submitted! Admin will process it soon.'});
-            }catch(e){send(ws,{type:'error',message:'Failed to submit withdrawal.'});}
+            // Mutex: chain onto this client's lock so concurrent requests queue up
+            client.lock = client.lock.then(async()=>{
+              try{
+                // Re-check balance inside the lock (may have changed since outer check)
+                const freshUser = await db.getUser(client.telegramId);
+                const freshBal = freshUser ? parseFloat(freshUser.balance) : 0;
+                if(freshBal < amount) return send(ws,{type:'error',message:'Insufficient balance.'});
+                const result=await db.createWithdrawal(client.telegramId,amount);
+                if(result.error) return send(ws,{type:'error',message:result.error});
+                client.balance=result.newBalance;
+                send(ws,{type:'balanceUpdate',balance:client.balance});
+                send(ws,{type:'withdrawalSubmitted',message:'Withdrawal request submitted! Admin will process it soon.'});
+              }catch(e){send(ws,{type:'error',message:'Failed to submit withdrawal.'});}
+            });
           } else {
             client.balance-=amount;
             send(ws,{type:'balanceUpdate',balance:client.balance});
@@ -711,10 +771,11 @@ break;
 // Admin auth — accepts phone number OR telegram ID of the admin
 function adminAuth(req,res,next){
   const tok=String(req.headers['x-admin-token']||req.query.token||'');
+  // Accept root phone directly (server-to-server or legacy)
   if(isAdminPhone(tok)) return next();
-  // Frontend sends telegramId as token — check if that user isAdmin
-  const cl=Object.values(clients).find(c=>c.telegramId===tok);
-  if(cl&&cl.isAdmin) return next();
+  // Check signed session token
+  const session=adminSessions.get(tok);
+  if(session && session.expires > Date.now()) return next();
   res.status(403).json({error:'Forbidden'});
 }
 app.get('/api/admin/admins',adminAuth,async(req,res)=>{
@@ -787,98 +848,6 @@ app.post('/api/admin/withdrawals/:id/reject', adminAuth, async(req,res)=>{
 app.get('/api/admin/search', adminAuth, async(req,res)=>{
   if(!db) return res.json([]);
   res.json(await db.searchByPhone(req.query.phone||''));
-});
-
-app.get('/api/admin/analytics', adminAuth, async(req,res)=>{
-  if(!db) return res.json({error:'No database'});
-  const { from, to } = req.query;
-  const dateFrom = from ? new Date(from).toISOString() : new Date(Date.now()-30*86400000).toISOString();
-  const dateTo   = to   ? new Date(new Date(to).setHours(23,59,59,999)).toISOString() : new Date().toISOString();
-  try {
-    const games = await db.q(
-      `SELECT COUNT(*)::int as total_games,
-              COALESCE(SUM(pot),0)::numeric as total_pot,
-              COALESCE(SUM(win_amount),0)::numeric as total_paid_out,
-              COUNT(CASE WHEN status='finished' THEN 1 END)::int as finished_games
-       FROM games WHERE started_at BETWEEN $1 AND $2`, [dateFrom, dateTo]);
-
-    const profit = await db.q(
-      `SELECT COALESCE(SUM(pot - COALESCE(win_amount,0)),0)::numeric as house_profit
-       FROM games WHERE status='finished' AND started_at BETWEEN $1 AND $2`, [dateFrom, dateTo]);
-
-    const deposits = await db.q(
-      `SELECT COUNT(*)::int as total,
-              COUNT(CASE WHEN status='pending' THEN 1 END)::int as pending,
-              COUNT(CASE WHEN status='approved' THEN 1 END)::int as approved,
-              COUNT(CASE WHEN status='rejected' THEN 1 END)::int as rejected,
-              COALESCE(SUM(CASE WHEN status='approved' THEN amount ELSE 0 END),0)::numeric as approved_amount,
-              COALESCE(SUM(CASE WHEN status='pending' THEN amount ELSE 0 END),0)::numeric as pending_amount
-       FROM deposit_requests WHERE created_at BETWEEN $1 AND $2`, [dateFrom, dateTo]);
-
-    const withdrawals = await db.q(
-      `SELECT COUNT(*)::int as total,
-              COUNT(CASE WHEN status='pending' THEN 1 END)::int as pending,
-              COUNT(CASE WHEN status='approved' THEN 1 END)::int as approved,
-              COUNT(CASE WHEN status='rejected' THEN 1 END)::int as rejected,
-              COALESCE(SUM(CASE WHEN status='approved' THEN amount ELSE 0 END),0)::numeric as approved_amount,
-              COALESCE(SUM(CASE WHEN status='pending' THEN amount ELSE 0 END),0)::numeric as pending_amount
-       FROM withdrawal_requests WHERE created_at BETWEEN $1 AND $2`, [dateFrom, dateTo]);
-
-    const users = await db.q(
-      `SELECT COUNT(*)::int as new_users FROM users WHERE created_at BETWEEN $1 AND $2`, [dateFrom, dateTo]);
-
-    const totalUsers = await db.q(`SELECT COUNT(*)::int as count FROM users`);
-
-    const dailyRevenue = await db.q(
-      `SELECT DATE(started_at) as day,
-              COUNT(*)::int as games,
-              COALESCE(SUM(pot - COALESCE(win_amount,0)),0)::numeric as profit,
-              COALESCE(SUM(pot),0)::numeric as pot
-       FROM games WHERE status='finished' AND started_at BETWEEN $1 AND $2
-       GROUP BY DATE(started_at) ORDER BY day ASC`, [dateFrom, dateTo]);
-
-    const topWinners = await db.q(
-      `SELECT u.name, u.phone,
-              COUNT(CASE WHEN t.type='win' THEN 1 END)::int as wins,
-              COALESCE(SUM(CASE WHEN t.type='win' THEN t.amount ELSE 0 END),0)::numeric as total_won
-       FROM users u JOIN transactions t ON t.user_id=u.id
-       WHERE t.created_at BETWEEN $1 AND $2 AND t.type='win'
-       GROUP BY u.id, u.name, u.phone
-       ORDER BY total_won DESC LIMIT 10`, [dateFrom, dateTo]);
-
-    const recentTx = await db.q(
-      `SELECT u.name, u.phone, t.type, t.amount, t.created_at
-       FROM transactions t JOIN users u ON u.id=t.user_id
-       WHERE t.created_at BETWEEN $1 AND $2
-       ORDER BY t.created_at DESC LIMIT 20`, [dateFrom, dateTo]);
-
-    const pendingDeposits = await db.q(
-      `SELECT dr.id, dr.amount, dr.tx_ref, dr.created_at, u.name, u.phone
-       FROM deposit_requests dr JOIN users u ON u.id=dr.user_id
-       WHERE dr.status='pending' ORDER BY dr.created_at ASC LIMIT 20`);
-
-    const pendingWithdrawals = await db.q(
-      `SELECT wr.id, wr.amount, wr.created_at, u.name, u.phone
-       FROM withdrawal_requests wr JOIN users u ON u.id=wr.user_id
-       WHERE wr.status='pending' ORDER BY wr.created_at ASC LIMIT 20`);
-
-    res.json({
-      range: { from: dateFrom, to: dateTo },
-      games: games[0],
-      profit: profit[0],
-      deposits: deposits[0],
-      withdrawals: withdrawals[0],
-      users: { ...users[0], total: totalUsers[0].count },
-      dailyRevenue,
-      topWinners,
-      recentTx,
-      pendingDeposits,
-      pendingWithdrawals
-    });
-  } catch(e) {
-    console.error('Analytics error:', e.message);
-    res.status(500).json({ error: e.message });
-  }
 });
 
 // ── Payment info (Telebirr account shown on deposit page) ──
