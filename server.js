@@ -41,7 +41,13 @@ let db = null;
 if (process.env.DATABASE_URL) {
   try {
     const { Pool } = require('pg');
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 20,                      // cap concurrent DB connections
+      idleTimeoutMillis: 30000,     // close idle connections after 30s
+      connectionTimeoutMillis: 5000 // fail fast instead of hanging under load
+    });
 
     db = {
       q: (sql, p) => pool.query(sql, p).then(r => r.rows),
@@ -292,14 +298,37 @@ function getOrCreateRoom(sid){
 const send=(ws,msg)=>{if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(msg));};
 const broadcast=(room,msg)=>{const s=JSON.stringify(msg);room.players.forEach(p=>{if(p.ws&&p.ws.readyState===WebSocket.OPEN)p.ws.send(s);});};
 function broadcastLobby(){
-  const payload=STAKES.map(s=>{const r=Object.values(rooms).find(r=>r.stakeId===s.id);
-    return{stakeId:s.id,amount:s.amount,maxPlayers:s.maxPlayers,playerCount:r?r.players.length:0,status:r?r.status:'waiting',countdown:r&&r.status==='countdown'?r.countdownLeft:0};});
-  Object.values(clients).forEach(c=>{if(!c.roomId)send(c.ws,{type:'lobbyUpdate',stakes:payload});});
+  // Debounced: many joins/leaves happening in quick succession (busy lobby with
+  // hundreds of players) will collapse into a single broadcast every 250ms,
+  // instead of one full broadcast-to-everyone per event.
+  if(broadcastLobby._pending) return;
+  broadcastLobby._pending=true;
+  setTimeout(()=>{
+    broadcastLobby._pending=false;
+    const payload=STAKES.map(s=>{const r=Object.values(rooms).find(r=>r.stakeId===s.id);
+      return{stakeId:s.id,amount:s.amount,maxPlayers:s.maxPlayers,playerCount:r?r.players.length:0,status:r?r.status:'waiting',countdown:r&&r.status==='countdown'?r.countdownLeft:0};});
+    const payloadStr=JSON.stringify({type:'lobbyUpdate',stakes:payload});
+    Object.values(clients).forEach(c=>{if(!c.roomId&&c.ws&&c.ws.readyState===WebSocket.OPEN)c.ws.send(payloadStr);});
+  },250);
 }
 function broadcastCardPool(room){
+  // Send only the FULL pool once when needed (e.g. on join); for live picks use broadcastCardDiff instead.
   const base=CARD_POOL.map(c=>({id:c.id,taken:room.takenCardIds.has(c.id)}));
   const cardCount=room.players.reduce((sum,p)=>(p.cardId?sum+1:sum)+(p.cardId2?1:0),0);
-room.players.forEach(p=>send(p.ws,{type:'cardPoolUpdate',pool:base.map(c=>({...c,takenByMe:p.cardId===c.id||p.cardId2===c.id})),playerCount:cardCount,stakeAmount:room.stake}));
+  room.players.forEach(p=>send(p.ws,{type:'cardPoolUpdate',pool:base.map(c=>({...c,takenByMe:p.cardId===c.id||p.cardId2===c.id})),playerCount:cardCount,stakeAmount:room.stake}));
+}
+// Lightweight update: tell everyone in the room only WHICH card(s) changed state,
+// instead of re-sending the entire 400-card array on every single pick.
+// This is the #1 fix for handling 400 concurrent players smoothly.
+function broadcastCardDiff(room, changedCardIds){
+  const cardCount=room.players.reduce((sum,p)=>(p.cardId?sum+1:sum)+(p.cardId2?1:0),0);
+  const changes=changedCardIds.map(id=>({id,taken:room.takenCardIds.has(id)}));
+  room.players.forEach(p=>send(p.ws,{
+    type:'cardPoolDiff',
+    changes:changes.map(c=>({...c,takenByMe:p.cardId===c.id||p.cardId2===c.id})),
+    playerCount:cardCount,
+    stakeAmount:room.stake
+  }));
 }
 
 // ─── GAME LIFECYCLE ──────────────────────────────────────────
@@ -481,9 +510,22 @@ wss.on('connection',(ws)=>{
 
   ws.on('message',async raw=>{
     try{
-      const msg=JSON.parse(raw);
       const client=clients[ws._pid];
       if(!client) return;
+
+      // ── Rate limiting: max 15 messages/sec per connection ──
+      // Protects against spam/DoS and prevents one misbehaving client
+      // (buggy or malicious) from hogging CPU when 400 people are connected.
+      const now=Date.now();
+      if(!client._rl||now-client._rl.windowStart>1000){
+        client._rl={windowStart:now,count:0};
+      }
+      client._rl.count++;
+      if(client._rl.count>15){
+        return; // silently drop excess messages this second
+      }
+
+      const msg=JSON.parse(raw);
 
       switch(msg.type){
         case 'telegramAuth':{
@@ -571,8 +613,10 @@ if(!ep&&msg.telegramId){
           const p=room.players.find(p=>p.playerId===client.playerId);
           if(!p) break;
           // Charge only on first card pick; second card charges at game start
+          // Track which card IDs changed so we only broadcast the diff, not all 400 cards
+          const changedIds=new Set([cardId]);
     if(slot===1){
-  if(p.cardId) room.takenCardIds.delete(p.cardId);
+  if(p.cardId) {room.takenCardIds.delete(p.cardId); changedIds.add(p.cardId);}
   if(client.balance<room.stake) return send(ws,{type:'error',message:`Need ${room.stake} ETB. Please deposit.`});
   if(!p.hasPaid){
     client.balance-=room.stake; p.hasPaid=true;
@@ -585,7 +629,7 @@ if(!ep&&msg.telegramId){
             send(ws,{type:'cardSelected',cardId,cardNumbers:card.numbers,slot:1});
           } else {
             // Second card — check balance for extra stake, charge now
-            if(p.cardId2) room.takenCardIds.delete(p.cardId2);
+            if(p.cardId2) {room.takenCardIds.delete(p.cardId2); changedIds.add(p.cardId2);}
             if(client.balance<room.stake) return send(ws,{type:'error',message:`Need ${room.stake} ETB more for second card.`});
             client.balance-=room.stake;
             await saveBalance(client.telegramId,client.balance);
@@ -595,7 +639,7 @@ if(!ep&&msg.telegramId){
             const card=getCard(cardId);
             send(ws,{type:'cardSelected',cardId,cardNumbers:card.numbers,slot:2});
           }
-          broadcastCardPool(room);
+          broadcastCardDiff(room,Array.from(changedIds));
 const readyCount=room.players.filter(p=>p.cardId).length;
 if(readyCount>=2&&room.status==='waiting') startCountdown(room);
 break;
@@ -607,16 +651,19 @@ break;
           const p=room.players.find(p=>p.playerId===client.playerId);
           if(!p) break;
           if(msg.slot===2&&p.cardId2){
+            const releasedId=p.cardId2;
             room.takenCardIds.delete(p.cardId2); p.cardId2=null;
             // Refund second card stake
             client.balance+=room.stake;
             await saveBalance(client.telegramId,client.balance);
             if(db&&client.telegramId){try{await db.logTx(client.telegramId,'stake_refund',room.stake,client.balance,room.roomId);}catch(e){}}
             send(ws,{type:'balanceUpdate',balance:client.balance});
+            broadcastCardDiff(room,[releasedId]); break;
           } else if(msg.slot===1&&p.cardId){
+            const releasedIds=[p.cardId];
             room.takenCardIds.delete(p.cardId); p.cardId=null;
             // If had second card, promote it to card1, refund would be complex so just clear both
-            if(p.cardId2){room.takenCardIds.delete(p.cardId2);p.cardId2=null;
+            if(p.cardId2){releasedIds.push(p.cardId2);room.takenCardIds.delete(p.cardId2);p.cardId2=null;
               client.balance+=room.stake;
               await saveBalance(client.telegramId,client.balance);
               if(db&&client.telegramId){try{await db.logTx(client.telegramId,'stake_refund',room.stake,client.balance,room.roomId);}catch(e){}}
@@ -627,8 +674,9 @@ break;
             await saveBalance(client.telegramId,client.balance);
             if(db&&client.telegramId){try{await db.logTx(client.telegramId,'stake_refund',room.stake,client.balance,room.roomId);}catch(e){}}
             send(ws,{type:'balanceUpdate',balance:client.balance});
+            broadcastCardDiff(room,releasedIds); break;
           }
-          broadcastCardPool(room); break;
+          break;
         }
         case 'claimBingo':{
           if(!client.roomId) return;
