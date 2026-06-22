@@ -789,6 +789,98 @@ app.get('/api/admin/search', adminAuth, async(req,res)=>{
   res.json(await db.searchByPhone(req.query.phone||''));
 });
 
+app.get('/api/admin/analytics', adminAuth, async(req,res)=>{
+  if(!db) return res.json({error:'No database'});
+  const { from, to } = req.query;
+  const dateFrom = from ? new Date(from).toISOString() : new Date(Date.now()-30*86400000).toISOString();
+  const dateTo   = to   ? new Date(new Date(to).setHours(23,59,59,999)).toISOString() : new Date().toISOString();
+  try {
+    const games = await db.q(
+      `SELECT COUNT(*)::int as total_games,
+              COALESCE(SUM(pot),0)::numeric as total_pot,
+              COALESCE(SUM(win_amount),0)::numeric as total_paid_out,
+              COUNT(CASE WHEN status='finished' THEN 1 END)::int as finished_games
+       FROM games WHERE started_at BETWEEN $1 AND $2`, [dateFrom, dateTo]);
+
+    const profit = await db.q(
+      `SELECT COALESCE(SUM(pot - COALESCE(win_amount,0)),0)::numeric as house_profit
+       FROM games WHERE status='finished' AND started_at BETWEEN $1 AND $2`, [dateFrom, dateTo]);
+
+    const deposits = await db.q(
+      `SELECT COUNT(*)::int as total,
+              COUNT(CASE WHEN status='pending' THEN 1 END)::int as pending,
+              COUNT(CASE WHEN status='approved' THEN 1 END)::int as approved,
+              COUNT(CASE WHEN status='rejected' THEN 1 END)::int as rejected,
+              COALESCE(SUM(CASE WHEN status='approved' THEN amount ELSE 0 END),0)::numeric as approved_amount,
+              COALESCE(SUM(CASE WHEN status='pending' THEN amount ELSE 0 END),0)::numeric as pending_amount
+       FROM deposit_requests WHERE created_at BETWEEN $1 AND $2`, [dateFrom, dateTo]);
+
+    const withdrawals = await db.q(
+      `SELECT COUNT(*)::int as total,
+              COUNT(CASE WHEN status='pending' THEN 1 END)::int as pending,
+              COUNT(CASE WHEN status='approved' THEN 1 END)::int as approved,
+              COUNT(CASE WHEN status='rejected' THEN 1 END)::int as rejected,
+              COALESCE(SUM(CASE WHEN status='approved' THEN amount ELSE 0 END),0)::numeric as approved_amount,
+              COALESCE(SUM(CASE WHEN status='pending' THEN amount ELSE 0 END),0)::numeric as pending_amount
+       FROM withdrawal_requests WHERE created_at BETWEEN $1 AND $2`, [dateFrom, dateTo]);
+
+    const users = await db.q(
+      `SELECT COUNT(*)::int as new_users FROM users WHERE created_at BETWEEN $1 AND $2`, [dateFrom, dateTo]);
+
+    const totalUsers = await db.q(`SELECT COUNT(*)::int as count FROM users`);
+
+    const dailyRevenue = await db.q(
+      `SELECT DATE(started_at) as day,
+              COUNT(*)::int as games,
+              COALESCE(SUM(pot - COALESCE(win_amount,0)),0)::numeric as profit,
+              COALESCE(SUM(pot),0)::numeric as pot
+       FROM games WHERE status='finished' AND started_at BETWEEN $1 AND $2
+       GROUP BY DATE(started_at) ORDER BY day ASC`, [dateFrom, dateTo]);
+
+    const topWinners = await db.q(
+      `SELECT u.name, u.phone,
+              COUNT(CASE WHEN t.type='win' THEN 1 END)::int as wins,
+              COALESCE(SUM(CASE WHEN t.type='win' THEN t.amount ELSE 0 END),0)::numeric as total_won
+       FROM users u JOIN transactions t ON t.user_id=u.id
+       WHERE t.created_at BETWEEN $1 AND $2 AND t.type='win'
+       GROUP BY u.id, u.name, u.phone
+       ORDER BY total_won DESC LIMIT 10`, [dateFrom, dateTo]);
+
+    const recentTx = await db.q(
+      `SELECT u.name, u.phone, t.type, t.amount, t.created_at
+       FROM transactions t JOIN users u ON u.id=t.user_id
+       WHERE t.created_at BETWEEN $1 AND $2
+       ORDER BY t.created_at DESC LIMIT 20`, [dateFrom, dateTo]);
+
+    const pendingDeposits = await db.q(
+      `SELECT dr.id, dr.amount, dr.tx_ref, dr.created_at, u.name, u.phone
+       FROM deposit_requests dr JOIN users u ON u.id=dr.user_id
+       WHERE dr.status='pending' ORDER BY dr.created_at ASC LIMIT 20`);
+
+    const pendingWithdrawals = await db.q(
+      `SELECT wr.id, wr.amount, wr.created_at, u.name, u.phone
+       FROM withdrawal_requests wr JOIN users u ON u.id=wr.user_id
+       WHERE wr.status='pending' ORDER BY wr.created_at ASC LIMIT 20`);
+
+    res.json({
+      range: { from: dateFrom, to: dateTo },
+      games: games[0],
+      profit: profit[0],
+      deposits: deposits[0],
+      withdrawals: withdrawals[0],
+      users: { ...users[0], total: totalUsers[0].count },
+      dailyRevenue,
+      topWinners,
+      recentTx,
+      pendingDeposits,
+      pendingWithdrawals
+    });
+  } catch(e) {
+    console.error('Analytics error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Payment info (Telebirr account shown on deposit page) ──
 app.get('/api/payment-info', (req,res)=>{
   res.json(PAYMENT_INFO);
