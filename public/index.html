@@ -415,6 +415,7 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
     </div>
     <div class="admin-tab" onclick="switchAdminTab('search')">Search</div>
     <div id="settingsTab" style="display:none" class="admin-tab" onclick="switchAdminTab('settings')">Settings</div>
+    <div id="analyticsTab" style="display:none" class="admin-tab" onclick="switchAdminTab('analytics')">📊 Stats</div>
   </div>
 
   <div id="adminDeposits" class="admin-section active">
@@ -464,6 +465,38 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;padding-bott
       <div id="adminMgmtMsg" style="display:none" class="status-msg"></div>
     </div>
   </div>
+
+  <!-- ── ANALYTICS SECTION ─────────────────────────────── -->
+  <div id="adminAnalytics" class="admin-section">
+
+    <!-- Date range picker -->
+    <div style="background:var(--card);border:1px solid #3c2463;border-radius:12px;padding:14px;margin-bottom:14px">
+      <div style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;color:var(--gold);margin-bottom:12px">📅 Date Range</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <label style="font-size:11px;color:var(--gray);display:block;margin-bottom:4px">From</label>
+          <input type="date" id="analyticsFrom" class="form-input" style="font-size:13px;padding:8px 10px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--gray);display:block;margin-bottom:4px">To</label>
+          <input type="date" id="analyticsTo" class="form-input" style="font-size:13px;padding:8px 10px">
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <button onclick="analyticsSetRange('today')" class="refresh-btn" style="margin:0;font-size:11px;padding:5px 10px">Today</button>
+        <button onclick="analyticsSetRange('7d')" class="refresh-btn" style="margin:0;font-size:11px;padding:5px 10px">Last 7d</button>
+        <button onclick="analyticsSetRange('30d')" class="refresh-btn" style="margin:0;font-size:11px;padding:5px 10px">Last 30d</button>
+        <button onclick="analyticsSetRange('month')" class="refresh-btn" style="margin:0;font-size:11px;padding:5px 10px">This Month</button>
+        <button onclick="analyticsSetRange('all')" class="refresh-btn" style="margin:0;font-size:11px;padding:5px 10px">All Time</button>
+      </div>
+      <button class="btn-submit btn-green" onclick="loadAnalytics()" style="padding:10px">🔍 Load Report</button>
+    </div>
+
+    <div id="analyticsContent">
+      <div class="empty-state" style="padding:30px 0">Select a date range and click Load Report</div>
+    </div>
+  </div>
+
 </div>
   </div>
 </div>
@@ -762,6 +795,7 @@ if(pageParam === 'withdraw') setTimeout(()=>{ navGo('screenWallet','navWallet');
       fetch(`/api/user/${telegramId}`).then(r=>r.json()).then(u=>{
         if(u&&(u.phone===ADMIN_PHONE_CLIENT||u.phone===ADMIN_PHONE_CLIENT2)){
           document.getElementById('settingsTab').style.display='';
+          document.getElementById('analyticsTab').style.display='';
         }
       }).catch(()=>{});
     }
@@ -960,15 +994,17 @@ function submitWithdrawal(){
 // ─── ADMIN ────────────────────────────────────────────────────
 function switchAdminTab(tab){
   document.querySelectorAll('.admin-tab').forEach((t,i)=>{
-    t.classList.toggle('active',['deposits','withdrawals','search','settings'][i]===tab);
+    t.classList.toggle('active',['deposits','withdrawals','search','settings','analytics'][i]===tab);
   });
   document.getElementById('adminDeposits').classList.toggle('active',tab==='deposits');
   document.getElementById('adminWithdrawals').classList.toggle('active',tab==='withdrawals');
   document.getElementById('adminSearch').classList.toggle('active',tab==='search');
   document.getElementById('adminSettings').classList.toggle('active',tab==='settings');
+  document.getElementById('adminAnalytics').classList.toggle('active',tab==='analytics');
   if(tab==='deposits') adminLoadDeposits();
   if(tab==='withdrawals') adminLoadWithdrawals();
   if(tab==='settings'){ adminLoadPaymentSettings(); adminLoadAdmins(); }
+  if(tab==='analytics') loadAnalytics();
 }
 
 async function adminFetch(path, method='GET'){
@@ -1532,10 +1568,217 @@ document.getElementById('depositTxRef').addEventListener('input', function(){
     notFound.style.display='block';
   }
 });
+// ─── ANALYTICS ───────────────────────────────────────────────
+function analyticsSetRange(preset){
+  const now=new Date();
+  const fmt=d=>d.toISOString().slice(0,10);
+  const todayStr=fmt(now);
+  let from, to=todayStr;
+  if(preset==='today'){ from=todayStr; }
+  else if(preset==='7d'){ const d=new Date(now); d.setDate(d.getDate()-6); from=fmt(d); }
+  else if(preset==='30d'){ const d=new Date(now); d.setDate(d.getDate()-29); from=fmt(d); }
+  else if(preset==='month'){ from=fmt(new Date(now.getFullYear(),now.getMonth(),1)); }
+  else if(preset==='all'){ from='2020-01-01'; }
+  document.getElementById('analyticsFrom').value=from;
+  document.getElementById('analyticsTo').value=to;
+}
+
+async function loadAnalytics(){
+  const from=document.getElementById('analyticsFrom').value;
+  const to=document.getElementById('analyticsTo').value;
+  const content=document.getElementById('analyticsContent');
+  if(!from||!to){ showToast('Select a date range first','error'); return; }
+  content.innerHTML='<div class="empty-state" style="padding:30px 0">⏳ Loading report...</div>';
+  try{
+    const res=await fetch(`/api/admin/analytics?from=${from}&to=${to}`,{headers:{'x-admin-token':adminToken}});
+    const d=await res.json();
+    if(d.error){ content.innerHTML=`<div class="empty-state" style="color:var(--red)">${esc(d.error)}</div>`; return; }
+    renderAnalytics(d, from, to);
+  }catch(e){
+    content.innerHTML='<div class="empty-state" style="color:var(--red)">Failed to load report</div>';
+  }
+}
+
+function renderAnalytics(d, from, to){
+  const g=d.games||{}, p=d.profit||{}, dep=d.deposits||{}, wd=d.withdrawals||{}, u=d.users||{};
+  const houseProfitNum=parseFloat(p.house_profit||0);
+  const depApproved=parseFloat(dep.approved_amount||0);
+  const wdApproved=parseFloat(wd.approved_amount||0);
+  const netCash=depApproved-wdApproved;
+
+  const statCard=(icon,label,value,sub,color)=>`
+    <div style="background:var(--card);border:1px solid #3c2463;border-radius:12px;padding:14px;text-align:center">
+      <div style="font-size:22px;margin-bottom:4px">${icon}</div>
+      <div style="font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${label}</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:18px;font-weight:900;color:${color||'var(--gold)'};">${value}</div>
+      ${sub?`<div style="font-size:10px;color:var(--gray);margin-top:3px">${sub}</div>`:''}
+    </div>`;
+
+  // Daily revenue mini chart
+  const dailyRows=d.dailyRevenue||[];
+  let chartHtml='';
+  if(dailyRows.length>0){
+    const maxProfit=Math.max(...dailyRows.map(r=>parseFloat(r.profit||0)),1);
+    chartHtml=`
+      <div style="background:var(--card);border:1px solid #3c2463;border-radius:12px;padding:14px;margin-bottom:12px;overflow-x:auto">
+        <div style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;color:var(--gold);margin-bottom:12px">📈 Daily House Profit</div>
+        <div style="display:flex;align-items:flex-end;gap:4px;height:80px;min-width:${Math.max(dailyRows.length*28,260)}px">
+          ${dailyRows.map(r=>{
+            const h=Math.max(4,Math.round((parseFloat(r.profit||0)/maxProfit)*72));
+            const pf=parseFloat(r.profit||0).toFixed(0);
+            return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:20px" title="${r.day}: ${pf} ETB profit, ${r.games} games">
+              <div style="width:100%;background:var(--green);border-radius:3px 3px 0 0;height:${h}px;opacity:.85"></div>
+              <div style="font-size:8px;color:var(--gray);margin-top:3px;transform:rotate(-45deg);white-space:nowrap">${r.day.slice(5)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }
+
+  // Pending requests alert
+  const pendDep=d.pendingDeposits||[], pendWd=d.pendingWithdrawals||[];
+  let pendingHtml='';
+  if(pendDep.length||pendWd.length){
+    const pendDepAmt=pendDep.reduce((s,r)=>s+parseFloat(r.amount||0),0);
+    const pendWdAmt=pendWd.reduce((s,r)=>s+parseFloat(r.amount||0),0);
+    pendingHtml=`
+      <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.4);border-radius:12px;padding:14px;margin-bottom:12px">
+        <div style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;color:#f59e0b;margin-bottom:10px">⚠️ Pending Actions Required</div>
+        ${pendDep.length?`<div style="margin-bottom:8px">
+          <div style="font-size:12px;font-weight:700;color:#fff;margin-bottom:6px">💰 Deposits Awaiting Approval (${pendDep.length}) — ${pendDepAmt.toFixed(2)} ETB</div>
+          ${pendDep.map(r=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;background:var(--card);border-radius:8px;padding:8px 10px;margin-bottom:5px;font-size:12px">
+              <div><span style="font-weight:700">${esc(r.name)}</span> <span style="color:var(--gray)">📱${esc(r.phone)}</span></div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="color:var(--gold);font-weight:700">${parseFloat(r.amount).toFixed(0)} ETB</span>
+                <span style="font-size:10px;color:var(--gray)">${new Date(r.created_at).toLocaleDateString()}</span>
+                <button onclick="adminApproveDeposit(${r.id});loadAnalytics()" style="background:var(--green);color:#fff;border:none;padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer">✅</button>
+                <button onclick="adminRejectDeposit(${r.id});loadAnalytics()" style="background:var(--red);color:#fff;border:none;padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer">❌</button>
+              </div>
+            </div>`).join('')}
+        </div>`:''}
+        ${pendWd.length?`<div>
+          <div style="font-size:12px;font-weight:700;color:#fff;margin-bottom:6px">💸 Withdrawals Awaiting Approval (${pendWd.length}) — ${pendWdAmt.toFixed(2)} ETB</div>
+          ${pendWd.map(r=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;background:var(--card);border-radius:8px;padding:8px 10px;margin-bottom:5px;font-size:12px">
+              <div><span style="font-weight:700">${esc(r.name)}</span> <span style="color:var(--gray)">📱${esc(r.phone)}</span></div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="color:var(--red);font-weight:700">${parseFloat(r.amount).toFixed(0)} ETB</span>
+                <span style="font-size:10px;color:var(--gray)">${new Date(r.created_at).toLocaleDateString()}</span>
+                <button onclick="adminApproveWithdrawal(${r.id});loadAnalytics()" style="background:var(--green);color:#fff;border:none;padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer">✅</button>
+                <button onclick="adminRejectWithdrawal(${r.id});loadAnalytics()" style="background:var(--red);color:#fff;border:none;padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer">❌</button>
+              </div>
+            </div>`).join('')}
+        </div>`:''}
+      </div>`;
+  }
+
+  // Top winners table
+  let winnersHtml='';
+  if(d.topWinners&&d.topWinners.length){
+    winnersHtml=`
+      <div style="background:var(--card);border:1px solid #3c2463;border-radius:12px;padding:14px;margin-bottom:12px">
+        <div style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;color:var(--gold);margin-bottom:10px">🏆 Top Winners</div>
+        ${d.topWinners.map((w,i)=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #2d1b4e;font-size:12px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="color:var(--gold);font-weight:900;font-size:14px;min-width:20px">#${i+1}</span>
+              <div>
+                <div style="font-weight:700">${esc(w.name)}</div>
+                <div style="font-size:10px;color:var(--gray)">📱 ${esc(w.phone||'—')}</div>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div style="color:var(--green);font-weight:700">${parseFloat(w.total_won).toFixed(2)} ETB</div>
+              <div style="font-size:10px;color:var(--gray)">${w.wins} win${w.wins!==1?'s':''}</div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  // Recent transactions
+  let recentHtml='';
+  if(d.recentTx&&d.recentTx.length){
+    const txColor=t=>t==='win'||t==='deposit'?'var(--green)':'var(--red)';
+    const txSign=t=>t==='win'||t==='deposit'?'+':'−';
+    recentHtml=`
+      <div style="background:var(--card);border:1px solid #3c2463;border-radius:12px;padding:14px;margin-bottom:12px">
+        <div style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;color:var(--gold);margin-bottom:10px">🕐 Recent Transactions (last 20)</div>
+        ${d.recentTx.map(t=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2d1b4e;font-size:12px">
+            <div>
+              <span style="font-weight:600">${esc(t.name)}</span>
+              <span style="color:var(--gray);margin-left:6px;font-size:10px;text-transform:capitalize">${esc(t.type)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="color:${txColor(t.type)};font-weight:700">${txSign(t.type)}${Math.abs(parseFloat(t.amount)).toFixed(2)} ETB</span>
+              <span style="font-size:10px;color:var(--gray)">${new Date(t.created_at).toLocaleString().slice(0,16)}</span>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  document.getElementById('analyticsContent').innerHTML=`
+    <!-- Period header -->
+    <div style="text-align:center;margin-bottom:12px;font-size:11px;color:var(--gray)">
+      Report: <strong style="color:#fff">${from}</strong> → <strong style="color:#fff">${to}</strong>
+    </div>
+
+    <!-- KPI grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      ${statCard('💎','House Profit',houseProfitNum.toFixed(2)+' ETB','From finished games','var(--green)')}
+      ${statCard('🎮','Games Played',g.total_games||0,`${g.finished_games||0} finished`,'')}
+      ${statCard('💰','Deposits In',depApproved.toFixed(2)+' ETB',`${dep.approved||0} approved / ${dep.pending||0} pending`,'')}
+      ${statCard('💸','Withdrawals Out',wdApproved.toFixed(2)+' ETB',`${wd.approved||0} approved / ${wd.pending||0} pending`,'var(--red)')}
+      ${statCard('📊','Net Cash Flow',(netCash>=0?'+':'')+netCash.toFixed(2)+' ETB','Deposits − Withdrawals',netCash>=0?'var(--green)':'var(--red)')}
+      ${statCard('👥','Total Users',u.total||0,`+${u.new_users||0} new this period`,'')}
+    </div>
+
+    <!-- Deposit / Withdrawal breakdown -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div style="background:var(--card);border:1px solid #3c2463;border-radius:12px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:8px">💰 DEPOSITS</div>
+        ${[['Total',dep.total||0],['✅ Approved',dep.approved||0],['⏳ Pending',dep.pending||0],['❌ Rejected',dep.rejected||0]].map(([l,v])=>`
+          <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #2d1b4e">
+            <span style="color:var(--gray)">${l}</span><span style="font-weight:700">${v}</span>
+          </div>`).join('')}
+        <div style="font-size:12px;font-weight:700;color:var(--green);margin-top:6px">${depApproved.toFixed(2)} ETB in</div>
+        ${dep.pending>0?`<div style="font-size:11px;color:#f59e0b">${parseFloat(dep.pending_amount||0).toFixed(2)} ETB pending</div>`:''}
+      </div>
+      <div style="background:var(--card);border:1px solid #3c2463;border-radius:12px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:8px">💸 WITHDRAWALS</div>
+        ${[['Total',wd.total||0],['✅ Approved',wd.approved||0],['⏳ Pending',wd.pending||0],['❌ Rejected',wd.rejected||0]].map(([l,v])=>`
+          <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #2d1b4e">
+            <span style="color:var(--gray)">${l}</span><span style="font-weight:700">${v}</span>
+          </div>`).join('')}
+        <div style="font-size:12px;font-weight:700;color:var(--red);margin-top:6px">${wdApproved.toFixed(2)} ETB out</div>
+        ${wd.pending>0?`<div style="font-size:11px;color:#f59e0b">${parseFloat(wd.pending_amount||0).toFixed(2)} ETB pending</div>`:''}
+      </div>
+    </div>
+
+    ${pendingHtml}
+    ${chartHtml}
+    ${winnersHtml}
+    ${recentHtml}
+
+    <button class="refresh-btn" onclick="loadAnalytics()" style="width:100%;justify-content:center">🔄 Refresh Report</button>
+  `;
+}
+
 // ─── INIT ────────────────────────────────────────────────────
 buildTracker();
 connect();
 loadPaymentInfo();
+// Set default analytics range to last 30 days
+(()=>{
+  const fmt=d=>d.toISOString().slice(0,10);
+  const now=new Date();
+  const d30=new Date(now); d30.setDate(d30.getDate()-29);
+  const fromEl=document.getElementById('analyticsFrom');
+  const toEl=document.getElementById('analyticsTo');
+  if(fromEl) fromEl.value=fmt(d30);
+  if(toEl) toEl.value=fmt(now);
+})();
 </script>
 </body>
 </html>
