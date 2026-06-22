@@ -833,6 +833,17 @@ if(pageParam === 'withdraw') setTimeout(()=>{ navGo('screenWallet','navWallet');
       updatePrizePot(msg.playerCount||0, msg.stakeAmount||0);
       break;
 
+    case 'cardPoolDiff':
+      // Only a few cards changed — patch the local array + DOM directly,
+      // instead of re-rendering the whole 400-card grid (fixes lag with many players)
+      msg.changes.forEach(ch=>{
+        const idx=cardPool.findIndex(c=>c.id===ch.id);
+        if(idx>=0) cardPool[idx]={...cardPool[idx],...ch};
+        patchCardButton(ch);
+      });
+      updatePrizePot(msg.playerCount||0, msg.stakeAmount||0);
+      break;
+
     case 'cardSelected':
       if(msg.slot===2){
         myCardId2=msg.cardId; myCardNumbers2=msg.cardNumbers;
@@ -1361,7 +1372,7 @@ function renderCardPool(pool){
   grid.innerHTML='';
   pool.forEach(c=>{
     if(search>0&&c.id!==search) return;
-    const btn=document.createElement('div'); btn.className='pool-btn'; btn.innerText=`#${c.id}`;
+    const btn=document.createElement('div'); btn.className='pool-btn'; btn.id='cardbtn-'+c.id; btn.innerText=`#${c.id}`;
     if(c.id===myCardId) btn.classList.add('mine1');
     else if(c.id===myCardId2) btn.classList.add('mine2');
     else if(c.taken) btn.classList.add('taken');
@@ -1371,6 +1382,20 @@ function renderCardPool(pool){
     if(c.id===myCardId2) btn.onclick=()=>deselectCard(2);
     grid.appendChild(btn);
   });
+}
+// Patch a single card button in place (used by cardPoolDiff) — avoids re-rendering
+// all 400 buttons just because one card's taken/free state changed.
+function patchCardButton(c){
+  const btn=document.getElementById('cardbtn-'+c.id);
+  if(!btn) return;
+  btn.classList.remove('mine1','mine2','taken');
+  btn.onclick=null;
+  if(c.id===myCardId) btn.classList.add('mine1');
+  else if(c.id===myCardId2) btn.classList.add('mine2');
+  else if(c.taken) btn.classList.add('taken');
+  else btn.onclick=()=>pickCard(c.id);
+  if(c.id===myCardId) btn.onclick=()=>deselectCard(1);
+  if(c.id===myCardId2) btn.onclick=()=>deselectCard(2);
 }
 function pickCard(cardId){
   if(!myCardId){
